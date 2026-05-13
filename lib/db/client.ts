@@ -3,8 +3,12 @@ import { MongoClient, ServerApiVersion, type Db } from "mongodb"
 if (!process.env.MONGODB_URI) {
   throw new Error('Missing env "MONGODB_URI"')
 }
+if (!process.env.MONGODB_DB) {
+  throw new Error('Missing env "MONGODB_DB"')
+}
 
 const uri = process.env.MONGODB_URI
+const dbName = process.env.MONGODB_DB
 const options = {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -30,8 +34,5 @@ if (process.env.NODE_ENV === "development") {
 export default client
 
 export function getDb(): Db {
-  if (!process.env.MONGODB_DB) {
-    throw new Error('Missing env "MONGODB_DB"')
-  }
-  return client.db(process.env.MONGODB_DB)
+  return client.db(dbName)
 }
