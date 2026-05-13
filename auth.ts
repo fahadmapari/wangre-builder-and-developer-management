@@ -2,7 +2,7 @@ import NextAuth from "next-auth"
 import Google from "next-auth/providers/google"
 import { MongoDBAdapter } from "@auth/mongodb-adapter"
 import { ObjectId } from "mongodb"
-import client from "@/lib/db/client"
+import client, { getDb } from "@/lib/db/client"
 import type { Role } from "@/types"
 
 const adminEmails = (process.env.ADMIN_EMAILS ?? "")
@@ -20,7 +20,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async session({ session, user }) {
       session.user.id = user.id
-      session.user.role = ((user as { role?: Role }).role ?? "floor_manager")
+      session.user.role = user.role ?? "floor_manager"
       return session
     },
   },
@@ -29,8 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user.id) return
       const email = (user.email ?? "").toLowerCase()
       const role: Role = adminEmails.includes(email) ? "admin" : "floor_manager"
-      await client
-        .db(process.env.MONGODB_DB)
+      await getDb()
         .collection("users")
         .updateOne(
           { _id: new ObjectId(user.id) },
