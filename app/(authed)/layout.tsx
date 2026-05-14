@@ -19,9 +19,9 @@ export default async function AuthedLayout({
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2 font-mono text-sm font-semibold">
             <span className="grid size-7 place-items-center rounded-md border border-border bg-card text-xs">
-              R
+              W
             </span>
-            RealDev
+            Wangre
           </Link>
           <Separator orientation="vertical" className="h-5" />
           <Badge variant={roleVariant}>{roleLabel}</Badge>

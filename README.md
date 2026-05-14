@@ -1,4 +1,4 @@
-# RealDev Internal Tool
+# Wangre Internal Tool
 
 Operations console for a real-estate developer: projects, units, transactions,
 materials, inter-project transfers. Two roles — `admin` and `floor_manager`.
@@ -10,8 +10,8 @@ materials, inter-project transfers. Two roles — `admin` and `floor_manager`.
 Mongo transactions require a replica set. The simplest local setup:
 
 ```bash
-docker run -d --name realdev-mongo -p 27017:27017 mongo:7 --replSet rs0
-docker exec -it realdev-mongo mongosh --eval 'rs.initiate()'
+docker run -d --name wangre-mongo -p 27017:27017 mongo:7 --replSet rs0
+docker exec -it wangre-mongo mongosh --eval 'rs.initiate()'
 ```
 
 Verify with `mongosh --eval 'rs.status().ok'` (returns `1`).

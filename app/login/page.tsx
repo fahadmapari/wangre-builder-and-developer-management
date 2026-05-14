@@ -11,9 +11,9 @@ export default async function LoginPage() {
       <div className="flex w-full max-w-md flex-col items-center gap-10">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex size-12 items-center justify-center rounded-xl border border-border bg-card font-mono text-lg font-semibold">
-            R
+            W
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">RealDev</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Wangre</h1>
           <p className="max-w-xs text-sm text-muted-foreground">
             Internal operations console for projects, inventory, and ledger.
           </p>

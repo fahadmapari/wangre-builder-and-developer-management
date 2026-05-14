@@ -52,7 +52,7 @@
 # Local docker option: mongodb://localhost:27017/?replicaSet=rs0
 # Atlas (default): mongodb+srv://USER:PASS@cluster.mongodb.net/?retryWrites=true&w=majority
 MONGODB_URI=
-MONGODB_DB=realdev
+MONGODB_DB=wangredev
 
 # Auth.js v5
 # Generate with: npx auth secret  (or: openssl rand -base64 32)
