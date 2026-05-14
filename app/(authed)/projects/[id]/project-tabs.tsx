@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import {
   Tabs,
   TabsContent,
@@ -9,7 +10,13 @@ import {
 import { Card } from "@/components/ui/card"
 import type { Role } from "@/types"
 
-export function ProjectTabs({ role }: { role: Role }) {
+export function ProjectTabs({
+  role,
+  inventory,
+}: {
+  role: Role
+  inventory?: ReactNode
+}) {
   return (
     <Tabs defaultValue="inventory">
       <TabsList>
@@ -20,7 +27,9 @@ export function ProjectTabs({ role }: { role: Role }) {
         ) : null}
       </TabsList>
       <TabsContent value="inventory">
-        <Placeholder>Inventory listing coming in Phase 3.</Placeholder>
+        {inventory ?? (
+          <Placeholder>Inventory listing coming in Phase 3.</Placeholder>
+        )}
       </TabsContent>
       <TabsContent value="materials">
         <Placeholder>Materials tracking coming in Phase 4.</Placeholder>
