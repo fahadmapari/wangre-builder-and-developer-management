@@ -727,7 +727,11 @@ export function NewProjectButton({ variant }: { variant?: "cta" }) {
       >
         New project
       </Button>
-      <NewProjectDialog open={open} onOpenChange={setOpen} />
+      {/* key={open ? ...} forces React to remount the dialog on each open/close
+          cycle. Without this, useState(INITIAL) only runs once when the parent
+          mounts, so reopening the dialog after a previous use shows stale form
+          values and stale errors. */}
+      <NewProjectDialog key={open ? "open" : "closed"} open={open} onOpenChange={setOpen} />
     </>
   )
 }
