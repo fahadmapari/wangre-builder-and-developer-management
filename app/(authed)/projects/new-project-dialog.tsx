@@ -64,7 +64,7 @@ export function NewProjectButton({ variant }: { variant?: "cta" }) {
       >
         New project
       </Button>
-      <NewProjectDialog open={open} onOpenChange={setOpen} />
+      <NewProjectDialog key={open ? "open" : "closed"} open={open} onOpenChange={setOpen} />
     </>
   )
 }
