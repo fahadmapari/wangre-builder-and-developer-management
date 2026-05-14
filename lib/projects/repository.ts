@@ -4,6 +4,7 @@ import type {
   Project,
   Unit,
   UnitType,
+  UnitStatus,
   ProjectStatus,
 } from "./schemas"
 import {
@@ -26,6 +27,33 @@ export async function getProject(id: string): Promise<Project | null> {
   return db
     .collection<Project>("projects")
     .findOne({ _id: new ObjectId(id) })
+}
+
+export async function countSoldUnits(projectId: ObjectId): Promise<number> {
+  const db = getDb()
+  return db
+    .collection<Unit>("units")
+    .countDocuments({ projectId, status: "sold" })
+}
+
+export type UnitFilters = {
+  types: UnitType[]   // [] means "no filter"
+  statuses: UnitStatus[]
+}
+
+export async function listUnitsForProject(
+  projectId: ObjectId,
+  filters: UnitFilters
+): Promise<Unit[]> {
+  const db = getDb()
+  const query: Record<string, unknown> = { projectId }
+  if (filters.types.length > 0) query.type = { $in: filters.types }
+  if (filters.statuses.length > 0) query.status = { $in: filters.statuses }
+  return db
+    .collection<Unit>("units")
+    .find(query)
+    .sort({ floor: 1, number: 1 })
+    .toArray()
 }
 
 export async function createProjectWithUnits(
