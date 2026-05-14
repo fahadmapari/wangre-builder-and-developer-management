@@ -25,9 +25,21 @@ await db
   .createIndex({ projectId: 1, type: 1, number: 1 }, { unique: true })
 await db.collection("units").createIndex({ status: 1, soldAt: -1 })
 
+// Phase 3 — transactions (append-only with soft-void)
+await db
+  .collection("transactions")
+  .createIndex({ projectId: 1, occurredAt: -1 })
+await db
+  .collection("transactions")
+  .createIndex({ projectId: 1, kind: 1, voided: 1 })
+await db
+  .collection("transactions")
+  .createIndex({ unitId: 1, voided: 1 })
+
 console.log(
   "Indexes ensured: users.email (unique); projects.createdAt, projects.name; " +
-    "units.(projectId,type,status), units.(projectId,type,number) unique, units.(status,soldAt)"
+    "units.(projectId,type,status), units.(projectId,type,number) unique, units.(status,soldAt); " +
+    "transactions.(projectId,occurredAt), transactions.(projectId,kind,voided), transactions.(unitId,voided)"
 )
 
 await client.close()
