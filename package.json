@@ -10,7 +10,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "db:init": "node --env-file=.env.local scripts/init-db.mjs"
+    "db:init": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/init-db.mjs"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.11.2",
