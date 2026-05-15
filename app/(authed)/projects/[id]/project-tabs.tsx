@@ -14,10 +14,12 @@ export function ProjectTabs({
   role,
   inventory,
   materials,
+  financials,
 }: {
   role: Role
   inventory?: ReactNode
   materials?: ReactNode
+  financials?: ReactNode
 }) {
   return (
     <Tabs defaultValue="inventory">
@@ -40,7 +42,9 @@ export function ProjectTabs({
       </TabsContent>
       {role === "admin" ? (
         <TabsContent value="financials">
-          <Placeholder>Financial ledger coming in Phase 5.</Placeholder>
+          {financials ?? (
+            <Placeholder>Financial ledger coming in Phase 5.</Placeholder>
+          )}
         </TabsContent>
       ) : null}
     </Tabs>

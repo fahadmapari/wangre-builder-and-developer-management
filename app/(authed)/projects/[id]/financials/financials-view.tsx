@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card"
 import type { Transaction } from "@/lib/transactions/schemas"
 import type { FinancialTotals } from "@/lib/transactions/repository"
 import { LedgerFilters } from "./ledger-filters"

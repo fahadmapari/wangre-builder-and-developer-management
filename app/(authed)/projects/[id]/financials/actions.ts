@@ -17,13 +17,18 @@ import {
   TransactionNotFoundError,
   CannotReverseError,
 } from "@/lib/transactions/repository"
-import client, { getDb } from "@/lib/db/client"
+import { getDb } from "@/lib/db/client"
 
-function fieldError(parsed: { success: false; error: any }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fieldError(parsed: { success: false; error: { issues?: any[] } }) {
   const first = parsed.error.issues?.[0]
   return {
-    error: first?.message ?? "Invalid input",
-    field: (first?.path?.join(".") || undefined) as string | undefined,
+    error: (first?.message as string | undefined) ?? "Invalid input",
+    field: (
+      first?.path
+        ?.filter((p: unknown) => typeof p === "string" || typeof p === "number")
+        .join(".") || undefined
+    ) as string | undefined,
   }
 }
 

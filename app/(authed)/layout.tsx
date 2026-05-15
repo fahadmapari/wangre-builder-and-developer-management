@@ -12,6 +12,7 @@ export default async function AuthedLayout({
   const user = await requireAuth()
   const roleLabel = user.role === "admin" ? "Admin" : "Floor manager"
   const roleVariant = user.role === "admin" ? "default" : "secondary"
+  const isAdmin = user.role === "admin"
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -23,16 +24,25 @@ export default async function AuthedLayout({
             </span>
             Wangre
           </Link>
-          {user.role === "admin" ? (
-            <Link
-              href="/catalog"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Catalog
-            </Link>
-          ) : null}
           <Separator orientation="vertical" className="h-5" />
           <Badge variant={roleVariant}>{roleLabel}</Badge>
+          {isAdmin ? (
+            <>
+              <Separator orientation="vertical" className="h-5" />
+              <Link
+                href="/catalog"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Catalog
+              </Link>
+              <Link
+                href="/financials"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Financials
+              </Link>
+            </>
+          ) : null}
         </div>
         <UserMenu
           email={user.email ?? ""}
