@@ -23,6 +23,14 @@ export default async function AuthedLayout({
             </span>
             Wangre
           </Link>
+          {user.role === "admin" ? (
+            <Link
+              href="/catalog"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Catalog
+            </Link>
+          ) : null}
           <Separator orientation="vertical" className="h-5" />
           <Badge variant={roleVariant}>{roleLabel}</Badge>
         </div>

@@ -13,9 +13,11 @@ import type { Role } from "@/types"
 export function ProjectTabs({
   role,
   inventory,
+  materials,
 }: {
   role: Role
   inventory?: ReactNode
+  materials?: ReactNode
 }) {
   return (
     <Tabs defaultValue="inventory">
@@ -32,7 +34,9 @@ export function ProjectTabs({
         )}
       </TabsContent>
       <TabsContent value="materials">
-        <Placeholder>Materials tracking coming in Phase 4.</Placeholder>
+        {materials ?? (
+          <Placeholder>Materials tracking coming in Phase 4.</Placeholder>
+        )}
       </TabsContent>
       {role === "admin" ? (
         <TabsContent value="financials">

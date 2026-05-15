@@ -13,6 +13,7 @@ import {
   InventoryTable,
   type InventoryFilterParams,
 } from "./inventory/inventory-table"
+import { MaterialsTable } from "./materials/materials-table"
 
 const STATUS_LABEL: Record<string, string> = {
   planning: "Planning",
@@ -85,6 +86,9 @@ export default async function ProjectDetailPage({
               searchParams={sp}
             />
           </div>
+        }
+        materials={
+          <MaterialsTable projectId={id} role={user.role} />
         }
       />
     </div>
