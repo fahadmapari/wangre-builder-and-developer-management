@@ -6,7 +6,11 @@ import { AddMaterialButton } from "./add-material-dialog"
 import { LogConsumptionButton } from "./log-consumption-dialog"
 import { LogReturnButton } from "./log-return-dialog"
 import { MovementsSheetButton } from "./movements-sheet"
-import { RecordPurchaseButton } from "./record-purchase-dialog"
+import {
+  RecordPurchaseButton,
+  TopLevelRecordPurchaseButton,
+  type CatalogPickerEntry,
+} from "./record-purchase-dialog"
 
 const INR = new Intl.NumberFormat("en-IN")
 
@@ -21,18 +25,26 @@ export function MaterialsTable({
   projectId,
   role,
   rows,
+  catalog,
 }: {
   projectId: string
   role: Role
   rows: ProjectMaterialListing[]
+  catalog: CatalogPickerEntry[]
 }) {
   const showSpent = role === "admin"
   const isAdmin = role === "admin"
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <AddMaterialButton />
+        {isAdmin ? (
+          <TopLevelRecordPurchaseButton
+            projectId={projectId}
+            catalog={catalog}
+          />
+        ) : null}
       </div>
       {rows.length === 0 ? (
         <Card className="grid place-items-center gap-2 p-12 text-sm text-muted-foreground">

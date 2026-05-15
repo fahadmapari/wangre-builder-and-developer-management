@@ -6,7 +6,7 @@ import {
   getProject,
 } from "@/lib/projects/repository"
 import { sumProjectRevenue } from "@/lib/transactions/repository"
-import { listProjectMaterials } from "@/lib/materials/repository"
+import { listProjectMaterials, listCatalog } from "@/lib/materials/repository"
 import { Badge } from "@/components/ui/badge"
 import { ProjectTabs } from "./project-tabs"
 import { InventoryFilters } from "./inventory/inventory-filters"
@@ -39,13 +39,22 @@ export default async function ProjectDetailPage({
   if (!ObjectId.isValid(id)) notFound()
   const projectObjectId = new ObjectId(id)
 
-  const [project, soldCount, revenue, materialRows] = await Promise.all([
+  const [project, soldCount, revenue, materialRows, catalog] = await Promise.all([
     getProject(id),
     countSoldUnits(projectObjectId),
     sumProjectRevenue(projectObjectId),
     listProjectMaterials(projectObjectId),
+    listCatalog(),
   ])
   if (!project) notFound()
+
+  const catalogForPicker = catalog.map((m) => ({
+    materialId: String(m._id),
+    name: m.name,
+    unit: m.unit,
+    unitOther: m.unitOther ?? "",
+    unitPrice: m.unitPrice,
+  }))
 
   const totalUnitsAndParkings = project.totalUnits + project.totalParkings
 
@@ -90,7 +99,12 @@ export default async function ProjectDetailPage({
           </div>
         }
         materials={
-          <MaterialsTable projectId={id} role={user.role} rows={materialRows} />
+          <MaterialsTable
+            projectId={id}
+            role={user.role}
+            rows={materialRows}
+            catalog={catalogForPicker}
+          />
         }
       />
     </div>
