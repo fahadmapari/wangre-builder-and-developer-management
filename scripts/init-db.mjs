@@ -58,11 +58,16 @@ await db
   .collection("materialMovements")
   .createIndex({ transactionId: 1 }, { sparse: true })
 
+// Phase 5 — reversal linkage on transactions
+await db
+  .collection("transactions")
+  .createIndex({ reversalOf: 1 }, { sparse: true })
+
 console.log(
   "Indexes ensured: users.email (unique); " +
     "projects.createdAt, projects.name; " +
     "units.(projectId,type,status), units.(projectId,type,number) unique, units.(status,soldAt); " +
-    "transactions.(projectId,occurredAt), transactions.(projectId,kind,voided), transactions.(unitId,voided); " +
+    "transactions.(projectId,occurredAt), transactions.(projectId,kind,voided), transactions.(unitId,voided), transactions.reversalOf sparse; " +
     "materials.name (case-insensitive); " +
     "projectMaterials.(projectId,materialId) unique, projectMaterials.(projectId); " +
     "materialMovements.(projectId,materialId,occurredAt), materialMovements.(projectId,kind,voided), materialMovements.(transactionId) sparse"
