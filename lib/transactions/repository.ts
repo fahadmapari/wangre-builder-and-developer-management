@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
-import type { Unit } from "@/lib/projects/schemas"
-import type { Transaction } from "./schemas"
+import type { Unit, Project } from "@/lib/projects/schemas"
+import type { Transaction, TransactionKind, LedgerFilters } from "./schemas"
 
 /**
  * Atomically marks one available unit as sold and inserts the corresponding
@@ -172,5 +172,177 @@ export class UnitNotSoldError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "UnitNotSoldError"
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 5 — ledger reads
+// ──────────────────────────────────────────────────────────────────────────
+
+function buildLedgerMatch(filters: LedgerFilters): Record<string, unknown> {
+  const match: Record<string, unknown> = {
+    occurredAt: { $gte: filters.from, $lte: endOfDay(filters.to) },
+  }
+  if (filters.kind !== "all") match.kind = filters.kind
+  if (filters.category !== "all") match.category = filters.category
+  if (!filters.includeVoided) match.voided = { $ne: true }
+  return match
+}
+
+function endOfDay(d: Date): Date {
+  const e = new Date(d)
+  e.setHours(23, 59, 59, 999)
+  return e
+}
+
+/**
+ * Returns the filtered ledger for a single project. Newest first.
+ */
+export async function listLedger(
+  projectId: ObjectId,
+  filters: LedgerFilters
+): Promise<Transaction[]> {
+  const db = getDb()
+  const match = { ...buildLedgerMatch(filters), projectId }
+  return db
+    .collection<Transaction>("transactions")
+    .find(match)
+    .sort({ occurredAt: -1, _id: -1 })
+    .toArray()
+}
+
+export type FinancialTotals = {
+  revenue: number
+  expenses: number
+  net: number
+}
+
+/**
+ * Computes Revenue / Expenses / Net over the filter window. Reversal rows
+ * subtract from their own kind's total via $cond on reversalOf. Voided rows
+ * are filtered out unless includeVoided=true, so "what you see is what you
+ * sum" — ledger and tiles always agree.
+ */
+export async function computeTotals(
+  projectId: ObjectId,
+  filters: LedgerFilters
+): Promise<FinancialTotals> {
+  const db = getDb()
+  const match = { ...buildLedgerMatch(filters), projectId }
+  const rows = await db
+    .collection<Transaction>("transactions")
+    .aggregate<{ _id: TransactionKind; total: number }>([
+      { $match: match },
+      {
+        $group: {
+          _id: "$kind",
+          total: {
+            $sum: {
+              $cond: [
+                { $eq: ["$reversalOf", null] },
+                "$amount",
+                { $multiply: ["$amount", -1] },
+              ],
+            },
+          },
+        },
+      },
+    ])
+    .toArray()
+  let revenue = 0
+  let expenses = 0
+  for (const r of rows) {
+    if (r._id === "income") revenue = r.total
+    else if (r._id === "expense") expenses = r.total
+  }
+  return { revenue, expenses, net: revenue - expenses }
+}
+
+export type PerProjectTotals = FinancialTotals & {
+  projectId: string
+  projectName: string
+}
+
+export type CrossProjectTotals = {
+  overall: FinancialTotals
+  perProject: PerProjectTotals[]
+}
+
+/**
+ * Cross-project totals for the global /financials view. Date-range only — no
+ * kind/category filter is offered in the global view.
+ */
+export async function listCrossProjectTotals(
+  range: { from: Date; to: Date }
+): Promise<CrossProjectTotals> {
+  const db = getDb()
+  const match = {
+    occurredAt: { $gte: range.from, $lte: endOfDay(range.to) },
+    voided: { $ne: true },
+  }
+
+  const grouped = await db
+    .collection<Transaction>("transactions")
+    .aggregate<{ _id: { projectId: ObjectId; kind: TransactionKind }; total: number }>([
+      { $match: match },
+      {
+        $group: {
+          _id: { projectId: "$projectId", kind: "$kind" },
+          total: {
+            $sum: {
+              $cond: [
+                { $eq: ["$reversalOf", null] },
+                "$amount",
+                { $multiply: ["$amount", -1] },
+              ],
+            },
+          },
+        },
+      },
+    ])
+    .toArray()
+
+  const byProject = new Map<string, { revenue: number; expenses: number }>()
+  for (const row of grouped) {
+    const key = row._id.projectId.toHexString()
+    const entry = byProject.get(key) ?? { revenue: 0, expenses: 0 }
+    if (row._id.kind === "income") entry.revenue = row.total
+    else if (row._id.kind === "expense") entry.expenses = row.total
+    byProject.set(key, entry)
+  }
+
+  // Attach project names. Read all projects (Phase 2 list is small) and join.
+  const projects = await db
+    .collection<Project>("projects")
+    .find({})
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const nameById = new Map(projects.map((p) => [p._id.toHexString(), p.name]))
+
+  const perProject: PerProjectTotals[] = []
+  let overallRevenue = 0
+  let overallExpenses = 0
+  for (const [pid, totals] of byProject) {
+    perProject.push({
+      projectId: pid,
+      projectName: nameById.get(pid) ?? "(unknown project)",
+      revenue: totals.revenue,
+      expenses: totals.expenses,
+      net: totals.revenue - totals.expenses,
+    })
+    overallRevenue += totals.revenue
+    overallExpenses += totals.expenses
+  }
+
+  // Sort by absolute net descending so most-active projects float to the top.
+  perProject.sort((a, b) => Math.abs(b.net) - Math.abs(a.net))
+
+  return {
+    overall: {
+      revenue: overallRevenue,
+      expenses: overallExpenses,
+      net: overallRevenue - overallExpenses,
+    },
+    perProject,
   }
 }
