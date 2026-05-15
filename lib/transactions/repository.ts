@@ -444,7 +444,7 @@ export async function reverseTransaction(
         description: `Reversal of: ${original.description}`,
         occurredAt,
         buyerName: original.buyerName,
-        notes: override.notes ?? "",
+        notes: override.notes || undefined,
         reversalOf: original._id,
         createdBy,
         createdAt: now,
@@ -466,13 +466,6 @@ export class TransactionNotFoundError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "TransactionNotFoundError"
-  }
-}
-
-export class TransactionAlreadyVoidedError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = "TransactionAlreadyVoidedError"
   }
 }
 

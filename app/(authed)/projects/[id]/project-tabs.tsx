@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   Tabs,
   TabsContent,
@@ -9,6 +10,14 @@ import {
 } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import type { Role } from "@/types"
+
+type TabValue = "inventory" | "materials" | "financials"
+
+function pickTab(raw: string | null, role: Role): TabValue {
+  if (raw === "materials") return "materials"
+  if (raw === "financials" && role === "admin") return "financials"
+  return "inventory"
+}
 
 export function ProjectTabs({
   role,
@@ -21,8 +30,10 @@ export function ProjectTabs({
   materials?: ReactNode
   financials?: ReactNode
 }) {
+  const sp = useSearchParams()
+  const defaultTab = pickTab(sp.get("tab"), role)
   return (
-    <Tabs defaultValue="inventory">
+    <Tabs defaultValue={defaultTab}>
       <TabsList>
         <TabsTrigger value="inventory">Inventory</TabsTrigger>
         <TabsTrigger value="materials">Materials</TabsTrigger>
