@@ -346,3 +346,147 @@ export async function listCrossProjectTotals(
     perProject,
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 5 — ledger writes (void + reverse)
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Soft-void an ad-hoc transaction. Race-safe via conditional update on
+ * category + voided + reversalOf $exists:false. Throws TransactionNotFoundError
+ * if no row matches (covers: deleted, not adhoc, already voided, is a reversal).
+ */
+export async function voidTransaction(
+  transactionId: ObjectId,
+  userId: string
+): Promise<void> {
+  const voidedBy = new ObjectId(userId)
+  const db = getDb()
+  const now = new Date()
+  const res = await db
+    .collection<Transaction>("transactions")
+    .updateOne(
+      {
+        _id: transactionId,
+        category: "adhoc",
+        voided: { $ne: true },
+        reversalOf: { $exists: false },
+      },
+      {
+        $set: {
+          voided: true,
+          voidedAt: now,
+          voidedBy,
+        },
+      }
+    )
+  if (res.matchedCount === 0) {
+    throw new TransactionNotFoundError(
+      "Transaction not found, already voided, or not voidable."
+    )
+  }
+}
+
+/**
+ * Insert a reversing entry. withTransaction wraps the read + insert so two
+ * concurrent reversers see deterministic ordering (the second succeeds but
+ * produces a duplicate reversal row — documented as known in the spec).
+ *
+ * Preconditions checked inside the transaction:
+ *   - original exists
+ *   - original not voided
+ *   - original is not itself a reversal
+ *   - original is not a transfer (Phase 6 territory)
+ */
+export async function reverseTransaction(
+  transactionId: ObjectId,
+  override: { occurredAt?: Date; notes?: string },
+  userId: string
+): Promise<{ reversalId: ObjectId }> {
+  const createdBy = new ObjectId(userId)
+  const session = client.startSession()
+  try {
+    let reversalId!: ObjectId
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const coll = db.collection<Transaction>("transactions")
+      const insertColl = db.collection<Omit<Transaction, "_id">>("transactions")
+
+      const original = await coll.findOne(
+        { _id: transactionId },
+        { session }
+      )
+      if (!original) {
+        throw new CannotReverseError("not-found")
+      }
+      if (original.voided === true) {
+        throw new CannotReverseError("is-voided")
+      }
+      if (original.reversalOf) {
+        throw new CannotReverseError("is-reversal")
+      }
+      if (
+        original.category === "transfer_in" ||
+        original.category === "transfer_out"
+      ) {
+        throw new CannotReverseError("is-transfer")
+      }
+
+      const now = new Date()
+      const occurredAt = override.occurredAt ?? now
+      const reversalDoc: Omit<Transaction, "_id"> = {
+        projectId: original.projectId,
+        unitId: original.unitId,
+        kind: original.kind,
+        category: original.category,
+        amount: original.amount,
+        currency: "INR",
+        description: `Reversal of: ${original.description}`,
+        occurredAt,
+        buyerName: original.buyerName,
+        notes: override.notes ?? "",
+        reversalOf: original._id,
+        createdBy,
+        createdAt: now,
+      }
+      const res = await insertColl.insertOne(reversalDoc, { session })
+      reversalId = res.insertedId
+    })
+    return { reversalId }
+  } finally {
+    await session.endSession()
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 5 — error classes
+// ──────────────────────────────────────────────────────────────────────────
+
+export class TransactionNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TransactionNotFoundError"
+  }
+}
+
+export class TransactionAlreadyVoidedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TransactionAlreadyVoidedError"
+  }
+}
+
+export type CannotReverseReason =
+  | "not-found"
+  | "is-voided"
+  | "is-reversal"
+  | "is-transfer"
+
+export class CannotReverseError extends Error {
+  readonly reason: CannotReverseReason
+  constructor(reason: CannotReverseReason) {
+    super(`Cannot reverse: ${reason}`)
+    this.name = "CannotReverseError"
+    this.reason = reason
+  }
+}
