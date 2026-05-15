@@ -50,7 +50,16 @@ export function CatalogTable({ materials }: { materials: Material[] }) {
                 {m.updatedAt.toLocaleDateString()}
               </td>
               <td className="px-4 py-3 text-right">
-                <EditMaterialButton material={m} />
+                <EditMaterialButton
+                  material={{
+                    _id: String(m._id),
+                    name: m.name,
+                    unit: m.unit,
+                    unitOther: m.unitOther,
+                    unitPrice: m.unitPrice,
+                    notes: m.notes,
+                  }}
+                />
               </td>
             </tr>
           ))}

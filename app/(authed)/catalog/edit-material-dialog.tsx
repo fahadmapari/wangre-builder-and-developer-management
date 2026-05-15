@@ -21,8 +21,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import type { Material, MaterialUnit } from "@/lib/materials/schemas"
+import type { MaterialUnit } from "@/lib/materials/schemas"
 import { updateMaterial } from "./actions"
+
+// Plain-object shape passed across the Server→Client boundary. Mongo ObjectIds
+// are not serializable by RSC, so the server converts `_id` to a string before
+// rendering.
+export type EditableMaterial = {
+  _id: string
+  name: string
+  unit: MaterialUnit
+  unitOther?: string
+  unitPrice: number | null
+  notes?: string
+}
 
 const UNIT_OPTIONS: { value: MaterialUnit; label: string }[] = [
   { value: "bag", label: "bag" },
@@ -47,7 +59,7 @@ type FormState = {
   notes: string
 }
 
-export function EditMaterialButton({ material }: { material: Material }) {
+export function EditMaterialButton({ material }: { material: EditableMaterial }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -55,7 +67,7 @@ export function EditMaterialButton({ material }: { material: Material }) {
         Edit
       </Button>
       <EditMaterialDialog
-        key={open ? `open-${String(material._id)}` : "closed"}
+        key={open ? `open-${material._id}` : "closed"}
         open={open}
         onOpenChange={setOpen}
         material={material}
@@ -71,7 +83,7 @@ function EditMaterialDialog({
 }: {
   open: boolean
   onOpenChange: (next: boolean) => void
-  material: Material
+  material: EditableMaterial
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -103,7 +115,7 @@ function EditMaterialDialog({
       form.unit !== material.unit || submittedOther !== currentOther
     startTransition(async () => {
       const result = await updateMaterial({
-        materialId: String(material._id),
+        materialId: material._id,
         name: form.name,
         ...(unitChanged
           ? { unit: form.unit, unitOther: submittedOther }
