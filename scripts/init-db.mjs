@@ -36,10 +36,36 @@ await db
   .collection("transactions")
   .createIndex({ unitId: 1, voided: 1 })
 
+// Phase 4 — materials catalog (global)
+await db
+  .collection("materials")
+  .createIndex({ name: 1 }, { collation: { locale: "en", strength: 2 } })
+
+// Phase 4 — per-project stock counter
+await db
+  .collection("projectMaterials")
+  .createIndex({ projectId: 1, materialId: 1 }, { unique: true })
+await db.collection("projectMaterials").createIndex({ projectId: 1 })
+
+// Phase 4 — movement event log
+await db
+  .collection("materialMovements")
+  .createIndex({ projectId: 1, materialId: 1, occurredAt: -1 })
+await db
+  .collection("materialMovements")
+  .createIndex({ projectId: 1, kind: 1, voided: 1 })
+await db
+  .collection("materialMovements")
+  .createIndex({ transactionId: 1 }, { sparse: true })
+
 console.log(
-  "Indexes ensured: users.email (unique); projects.createdAt, projects.name; " +
+  "Indexes ensured: users.email (unique); " +
+    "projects.createdAt, projects.name; " +
     "units.(projectId,type,status), units.(projectId,type,number) unique, units.(status,soldAt); " +
-    "transactions.(projectId,occurredAt), transactions.(projectId,kind,voided), transactions.(unitId,voided)"
+    "transactions.(projectId,occurredAt), transactions.(projectId,kind,voided), transactions.(unitId,voided); " +
+    "materials.name (case-insensitive); " +
+    "projectMaterials.(projectId,materialId) unique, projectMaterials.(projectId); " +
+    "materialMovements.(projectId,materialId,occurredAt), materialMovements.(projectId,kind,voided), materialMovements.(transactionId) sparse"
 )
 
 await client.close()
