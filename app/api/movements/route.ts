@@ -15,8 +15,10 @@ export async function GET(req: Request) {
     new ObjectId(projectId),
     new ObjectId(materialId)
   )
-  // Server-side strip for floor managers — never serialize unitPriceAtMovement
-  // or amount in the FM-visible payload.
+  // Server-side strip for floor managers: omit `amount` from the FM payload.
+  // `unitPriceAtMovement` is never serialized for either role — the sheet UI
+  // does not have a column for it. The historical price is recorded on the
+  // movement row in Mongo for audit purposes but is not exposed via this API.
   const stripMoney = user.role !== "admin"
   const rows = movements.map((m) => ({
     _id: String(m._id),

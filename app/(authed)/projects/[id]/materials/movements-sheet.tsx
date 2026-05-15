@@ -52,6 +52,7 @@ export function MovementsSheetButton({
 }) {
   const [open, setOpen] = useState(false)
   const [rows, setRows] = useState<MovementRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -60,16 +61,22 @@ export function MovementsSheetButton({
       `/api/movements?projectId=${projectId}&materialId=${materialId}`,
       { cache: "no-store" }
     )
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((data: { rows: MovementRow[] }) => {
         if (!cancelled) setRows(data.rows)
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not load history.")
       })
     return () => {
       cancelled = true
     }
   }, [open, projectId, materialId])
 
-  const loading = open && rows === null
+  const loading = open && rows === null && error === null
   const showAmount = role === "admin"
 
   return (
@@ -85,7 +92,10 @@ export function MovementsSheetButton({
         open={open}
         onOpenChange={(o) => {
           setOpen(o)
-          if (!o) setRows(null)
+          if (!o) {
+            setRows(null)
+            setError(null)
+          }
         }}
       >
         <SheetContent side="right" className="sm:max-w-xl">
@@ -96,7 +106,9 @@ export function MovementsSheetButton({
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6">
-            {loading ? (
+            {error ? (
+              <p className="text-sm text-destructive" role="alert">{error}</p>
+            ) : loading ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : !rows || rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No movements yet.</p>

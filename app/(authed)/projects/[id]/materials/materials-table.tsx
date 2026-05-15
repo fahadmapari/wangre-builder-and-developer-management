@@ -1,6 +1,5 @@
 import { Card } from "@/components/ui/card"
-import { listProjectMaterials, type ProjectMaterialListing } from "@/lib/materials/repository"
-import { ObjectId } from "mongodb"
+import type { ProjectMaterialListing } from "@/lib/materials/repository"
 import type { Material } from "@/lib/materials/schemas"
 import type { Role } from "@/types"
 import { AddMaterialButton } from "./add-material-dialog"
@@ -18,14 +17,15 @@ function formatUnit(m: Material): string {
   return m.unit
 }
 
-export async function MaterialsTable({
+export function MaterialsTable({
   projectId,
   role,
+  rows,
 }: {
   projectId: string
   role: Role
+  rows: ProjectMaterialListing[]
 }) {
-  const rows = await listProjectMaterials(new ObjectId(projectId))
   const showSpent = role === "admin"
   const isAdmin = role === "admin"
 

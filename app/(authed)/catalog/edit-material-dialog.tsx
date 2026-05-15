@@ -93,12 +93,21 @@ function EditMaterialDialog({
   function handleSubmit() {
     setErrorMsg(null)
     setErrorField(null)
+    // Only include unit/unitOther in the payload when they actually changed.
+    // The repository's unit-change guard treats any non-undefined `unit` or
+    // `unitOther` as an attempted change and would otherwise block every
+    // edit of a material that already has movements.
+    const submittedOther = form.unit === "other" ? form.unitOther : ""
+    const currentOther = material.unit === "other" ? (material.unitOther ?? "") : ""
+    const unitChanged =
+      form.unit !== material.unit || submittedOther !== currentOther
     startTransition(async () => {
       const result = await updateMaterial({
         materialId: String(material._id),
         name: form.name,
-        unit: form.unit,
-        unitOther: form.unit === "other" ? form.unitOther : "",
+        ...(unitChanged
+          ? { unit: form.unit, unitOther: submittedOther }
+          : {}),
         unitPrice: form.unitPrice === "" ? null : Number(form.unitPrice),
         notes: form.notes,
       })
