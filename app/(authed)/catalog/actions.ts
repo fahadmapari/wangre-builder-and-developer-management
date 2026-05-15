@@ -26,8 +26,9 @@ export async function createMaterial(
   // FM-side strip: a malicious or buggy FM client cannot smuggle unitPrice in.
   let cleaned = raw
   if (user.role !== "admin" && raw && typeof raw === "object") {
-    const { unitPrice: _drop, ...rest } = raw as Record<string, unknown>
-    cleaned = rest
+    const clone = { ...(raw as Record<string, unknown>) }
+    delete clone.unitPrice
+    cleaned = clone
   }
 
   const parsed = CreateMaterialInputSchema.safeParse(cleaned)

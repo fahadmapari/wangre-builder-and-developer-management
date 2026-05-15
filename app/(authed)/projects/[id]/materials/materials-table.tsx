@@ -37,7 +37,7 @@ export async function MaterialsTable({
       {rows.length === 0 ? (
         <Card className="grid place-items-center gap-2 p-12 text-sm text-muted-foreground">
           <p>No materials tracked for this project yet.</p>
-          <p>Use "Add material" to register one, then "Record purchase".</p>
+          <p>Use &ldquo;Add material&rdquo; to register one, then &ldquo;Record purchase&rdquo;.</p>
         </Card>
       ) : (
         <Card className="overflow-hidden">

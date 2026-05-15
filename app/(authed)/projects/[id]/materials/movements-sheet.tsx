@@ -52,12 +52,10 @@ export function MovementsSheetButton({
 }) {
   const [open, setOpen] = useState(false)
   const [rows, setRows] = useState<MovementRow[] | null>(null)
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setLoading(true)
     fetch(
       `/api/movements?projectId=${projectId}&materialId=${materialId}`,
       { cache: "no-store" }
@@ -66,14 +64,12 @@ export function MovementsSheetButton({
       .then((data: { rows: MovementRow[] }) => {
         if (!cancelled) setRows(data.rows)
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
     return () => {
       cancelled = true
     }
   }, [open, projectId, materialId])
 
+  const loading = open && rows === null
   const showAmount = role === "admin"
 
   return (
@@ -85,7 +81,13 @@ export function MovementsSheetButton({
       >
         History
       </Button>
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o)
+          if (!o) setRows(null)
+        }}
+      >
         <SheetContent side="right" className="sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>{materialName} — movement history</SheetTitle>

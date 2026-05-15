@@ -15,7 +15,7 @@ export default async function CatalogPage() {
             Materials catalog
           </h1>
           <p className="text-sm text-muted-foreground">
-            Global. Used by every project's Materials tab.
+            Global. Used by every project&apos;s Materials tab.
           </p>
         </div>
         <NewMaterialButton />
