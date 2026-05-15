@@ -239,9 +239,9 @@ export async function computeTotals(
           total: {
             $sum: {
               $cond: [
-                { $eq: ["$reversalOf", null] },
-                "$amount",
+                { $ifNull: ["$reversalOf", false] },
                 { $multiply: ["$amount", -1] },
+                "$amount",
               ],
             },
           },
@@ -291,9 +291,9 @@ export async function listCrossProjectTotals(
           total: {
             $sum: {
               $cond: [
-                { $eq: ["$reversalOf", null] },
-                "$amount",
+                { $ifNull: ["$reversalOf", false] },
                 { $multiply: ["$amount", -1] },
+                "$amount",
               ],
             },
           },
