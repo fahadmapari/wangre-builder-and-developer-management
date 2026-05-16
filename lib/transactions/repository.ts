@@ -539,6 +539,116 @@ export async function createMoneyTransfer(
   }
 }
 
+/**
+ * Reverse a money transfer atomically. Inserts two new ledger rows (a "reversal
+ * pair") sharing the same transferGroupId as the original pair. Each reversal
+ * leg carries reversalOf pointing to its corresponding original leg.
+ *
+ * Inside withTransaction:
+ *   1. Find both legs by transferGroupId. Expect exactly 2 rows.
+ *   2. Reject if either leg already has reversalOf (meaning the looked-up rows
+ *      are themselves reversals) or voided=true.
+ *   3. Reject if any row in the collection has reversalOf pointing to either leg
+ *      (already-reversed guard — serialized via the surrounding withTransaction).
+ *   4. Insert two reversal rows: swapped kind/category, same amount, same
+ *      transferGroupId, reversalOf pointing to the matching original leg.
+ */
+export async function reverseMoneyTransfer(
+  transferGroupId: ObjectId,
+  override: { occurredAt?: Date; notes?: string },
+  userId: string
+): Promise<{ sourceRevId: ObjectId; destRevId: ObjectId }> {
+  const createdBy = new ObjectId(userId)
+  const session = client.startSession()
+  try {
+    let sourceRevId!: ObjectId
+    let destRevId!: ObjectId
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const coll = db.collection<Transaction>("transactions")
+      const insertColl = db.collection<Omit<Transaction, "_id">>("transactions")
+
+      const legs = await coll.find({ transferGroupId }, { session }).toArray()
+      // Filter to ONLY the originals — a reversed group has 4 rows; we want the 2
+      // without reversalOf. If we find != 2 originals, throw.
+      const originals = legs.filter((l) => !l.reversalOf)
+      if (originals.length !== 2) {
+        throw new TransferNotFoundError(
+          "Transfer not found or not a valid pair of originals."
+        )
+      }
+
+      const sourceLeg = originals.find((l) => l.category === "transfer_out")
+      const destLeg = originals.find((l) => l.category === "transfer_in")
+      if (!sourceLeg || !destLeg) {
+        throw new TransferNotFoundError(
+          "Transfer group missing expected source or destination leg."
+        )
+      }
+
+      if (sourceLeg.voided === true || destLeg.voided === true) {
+        throw new CannotReverseTransferError("is-voided")
+      }
+
+      // Already-reversed guard: any row pointing reversalOf at either leg.
+      const existingReversal = await coll.findOne(
+        { reversalOf: { $in: [sourceLeg._id, destLeg._id] } },
+        { session }
+      )
+      if (existingReversal) {
+        throw new AlreadyReversedError(
+          "This transfer has already been reversed."
+        )
+      }
+
+      const now = new Date()
+      const occurredAt = override.occurredAt ?? now
+      const notes = override.notes || undefined
+
+      // Reversal of source leg (originally expense/transfer_out) becomes
+      // income/transfer_in for the source project — it gets the money back.
+      const sourceRevDoc: Omit<Transaction, "_id"> = {
+        projectId: sourceLeg.projectId,
+        unitId: null,
+        kind: "income",
+        category: "transfer_in",
+        amount: sourceLeg.amount,
+        currency: "INR",
+        description: `Reversal — ${sourceLeg.description}`,
+        occurredAt,
+        notes,
+        reversalOf: sourceLeg._id,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await insertColl.insertOne(sourceRevDoc, { session })
+      sourceRevId = sourceRes.insertedId
+
+      const destRevDoc: Omit<Transaction, "_id"> = {
+        projectId: destLeg.projectId,
+        unitId: null,
+        kind: "expense",
+        category: "transfer_out",
+        amount: destLeg.amount,
+        currency: "INR",
+        description: `Reversal — ${destLeg.description}`,
+        occurredAt,
+        notes,
+        reversalOf: destLeg._id,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await insertColl.insertOne(destRevDoc, { session })
+      destRevId = destRes.insertedId
+    })
+    return { sourceRevId, destRevId }
+  } finally {
+    await session.endSession()
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Phase 5 — error classes
 // ──────────────────────────────────────────────────────────────────────────
