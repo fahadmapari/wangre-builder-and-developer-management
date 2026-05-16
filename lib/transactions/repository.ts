@@ -459,6 +459,87 @@ export async function reverseTransaction(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Phase 6 — money transfers
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Atomically write the two paired ledger rows for a money transfer.
+ *
+ *   source: kind="expense", category="transfer_out"
+ *   dest:   kind="income",  category="transfer_in"
+ *
+ * Both rows share a fresh `transferGroupId`. Project names are denormalized
+ * into the description string by the caller; rename-after-write does not
+ * back-fill (consistent with Phase 4's "Purchase: {materialName}").
+ *
+ * Same-project guard is the action layer's responsibility (cheap pre-session
+ * check). This function does not re-check; callers must.
+ */
+export async function createMoneyTransfer(
+  input: {
+    sourceProjectId: ObjectId
+    destProjectId: ObjectId
+    amount: number
+    occurredAt: Date
+    description: string
+    notes: string
+    sourceProjectName: string
+    destProjectName: string
+  },
+  userId: string
+): Promise<{ transferGroupId: ObjectId; sourceTxId: ObjectId; destTxId: ObjectId }> {
+  const createdBy = new ObjectId(userId)
+  const transferGroupId = new ObjectId()
+  const session = client.startSession()
+  try {
+    let sourceTxId!: ObjectId
+    let destTxId!: ObjectId
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const txns = db.collection<Omit<Transaction, "_id">>("transactions")
+      const now = new Date()
+
+      const sourceDoc: Omit<Transaction, "_id"> = {
+        projectId: input.sourceProjectId,
+        unitId: null,
+        kind: "expense",
+        category: "transfer_out",
+        amount: input.amount,
+        currency: "INR",
+        description: `Transfer to ${input.destProjectName}: ${input.description}`,
+        occurredAt: input.occurredAt,
+        notes: input.notes || undefined,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await txns.insertOne(sourceDoc, { session })
+      sourceTxId = sourceRes.insertedId
+
+      const destDoc: Omit<Transaction, "_id"> = {
+        projectId: input.destProjectId,
+        unitId: null,
+        kind: "income",
+        category: "transfer_in",
+        amount: input.amount,
+        currency: "INR",
+        description: `Transfer from ${input.sourceProjectName}: ${input.description}`,
+        occurredAt: input.occurredAt,
+        notes: input.notes || undefined,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await txns.insertOne(destDoc, { session })
+      destTxId = destRes.insertedId
+    })
+    return { transferGroupId, sourceTxId, destTxId }
+  } finally {
+    await session.endSession()
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Phase 5 — error classes
 // ──────────────────────────────────────────────────────────────────────────
 
