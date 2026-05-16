@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
 import type { Unit, Project } from "@/lib/projects/schemas"
+import type { MoneyTransferRow } from "@/lib/transfers/schemas"
 import type { Transaction, TransactionKind, LedgerFilters } from "./schemas"
 
 /**
@@ -647,6 +648,125 @@ export async function reverseMoneyTransfer(
   } finally {
     await session.endSession()
   }
+}
+
+/**
+ * List money transfers across all projects within a date range.
+ *
+ * Groups rows in the `transactions` collection by `transferGroupId`. Each
+ * active transfer is a 2-row group (source + dest, neither with reversalOf);
+ * each reversed transfer is a 4-row group (2 originals + 2 reversals).
+ *
+ * Returns one row per group, taking metadata from the source leg (kind=expense,
+ * category=transfer_out). Status is "reversed" iff any row in the group has
+ * reversalOf set.
+ *
+ * Date range applies to the source leg's `occurredAt`. Reversed-but-original-
+ * before-window groups are still returned if their original date is in range.
+ */
+export async function listMoneyTransfers(
+  range: { from: Date; to: Date }
+): Promise<MoneyTransferRow[]> {
+  const db = getDb()
+  const fromDate = range.from
+  const toDate = endOfDay(range.to)
+
+  const candidates = await db
+    .collection<Transaction>("transactions")
+    .aggregate<{ _id: ObjectId }>([
+      {
+        $match: {
+          transferGroupId: { $exists: true },
+          category: { $in: ["transfer_in", "transfer_out"] },
+          occurredAt: { $gte: fromDate, $lte: toDate },
+          reversalOf: { $exists: false },
+        },
+      },
+      { $group: { _id: "$transferGroupId" } },
+    ])
+    .toArray()
+  const groupIds = candidates.map((c) => c._id)
+  if (groupIds.length === 0) return []
+
+  const allRows = await db
+    .collection<Transaction>("transactions")
+    .find({ transferGroupId: { $in: groupIds } })
+    .toArray()
+
+  const byGroup = new Map<string, Transaction[]>()
+  for (const row of allRows) {
+    const key = row.transferGroupId!.toHexString()
+    const bucket = byGroup.get(key) ?? []
+    bucket.push(row)
+    byGroup.set(key, bucket)
+  }
+
+  const projectIds = new Set<string>()
+  const userIds = new Set<string>()
+  for (const row of allRows) {
+    projectIds.add(row.projectId.toHexString())
+    userIds.add(row.createdBy.toHexString())
+  }
+  const projectsList = await db
+    .collection<Project>("projects")
+    .find({ _id: { $in: [...projectIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const projectNameById = new Map(
+    projectsList.map((p) => [p._id.toHexString(), p.name])
+  )
+  const usersList = await db
+    .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+    .find({ _id: { $in: [...userIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name?: string; email?: string }>({ name: 1, email: 1 })
+    .toArray()
+  const userNameById = new Map(
+    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null])
+  )
+
+  const result: MoneyTransferRow[] = []
+  for (const [groupKey, rows] of byGroup) {
+    const originals = rows.filter((r) => !r.reversalOf)
+    const reversals = rows.filter((r) => r.reversalOf)
+    const sourceLeg = originals.find((r) => r.category === "transfer_out")
+    const destLeg = originals.find((r) => r.category === "transfer_in")
+    if (!sourceLeg || !destLeg) continue
+
+    const reversedAt =
+      reversals.length > 0
+        ? reversals.reduce(
+            (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
+            null as Date | null
+          )
+        : null
+
+    result.push({
+      transferGroupId: groupKey,
+      occurredAt: sourceLeg.occurredAt,
+      sourceProjectId: sourceLeg.projectId.toHexString(),
+      sourceProjectName:
+        projectNameById.get(sourceLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      destProjectId: destLeg.projectId.toHexString(),
+      destProjectName:
+        projectNameById.get(destLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      amount: sourceLeg.amount,
+      description: sourceLeg.description,
+      status: reversals.length > 0 ? "reversed" : "active",
+      reversedAt,
+      createdBy: sourceLeg.createdBy.toHexString(),
+      createdByName:
+        userNameById.get(sourceLeg.createdBy.toHexString()) ?? null,
+    })
+  }
+
+  result.sort((a, b) => {
+    const d = b.occurredAt.getTime() - a.occurredAt.getTime()
+    if (d !== 0) return d
+    return b.transferGroupId.localeCompare(a.transferGroupId)
+  })
+  return result
 }
 
 // ──────────────────────────────────────────────────────────────────────────
