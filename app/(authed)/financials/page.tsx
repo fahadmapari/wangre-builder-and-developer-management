@@ -53,8 +53,24 @@ export default async function GlobalFinancialsPage({
         </p>
       </header>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tile label="Revenue" value={`₹${INR.format(overall.revenue)}`} />
-        <Tile label="Expenses" value={`₹${INR.format(overall.expenses)}`} />
+        <Tile
+          label="Revenue"
+          value={`₹${INR.format(overall.revenue)}`}
+          subtitle={
+            overall.transfersIn > 0
+              ? `incl. ₹${INR.format(overall.transfersIn)} transfers in`
+              : null
+          }
+        />
+        <Tile
+          label="Expenses"
+          value={`₹${INR.format(overall.expenses)}`}
+          subtitle={
+            overall.transfersOut > 0
+              ? `incl. ₹${INR.format(overall.transfersOut)} transfers out`
+              : null
+          }
+        />
         <Tile
           label="Net"
           value={`${overall.net < 0 ? "−" : ""}₹${INR.format(Math.abs(overall.net))}`}
@@ -70,10 +86,12 @@ export default async function GlobalFinancialsPage({
 function Tile({
   label,
   value,
+  subtitle,
   tone,
 }: {
   label: string
   value: string
+  subtitle?: string | null
   tone?: "gain" | "loss"
 }) {
   return (
@@ -88,6 +106,9 @@ function Tile({
       >
         {value}
       </span>
+      {subtitle ? (
+        <span className="text-xs text-muted-foreground">{subtitle}</span>
+      ) : null}
     </div>
   )
 }

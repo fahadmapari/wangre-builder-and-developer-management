@@ -40,9 +40,19 @@ export function PerProjectTable({ rows }: { rows: PerProjectTotals[] }) {
               </td>
               <td className="px-4 py-3 text-right font-mono">
                 ₹{INR.format(r.revenue)}
+                {r.transfersIn > 0 ? (
+                  <div className="text-xs text-muted-foreground font-sans">
+                    incl. ₹{INR.format(r.transfersIn)} transfers in
+                  </div>
+                ) : null}
               </td>
               <td className="px-4 py-3 text-right font-mono">
                 ₹{INR.format(r.expenses)}
+                {r.transfersOut > 0 ? (
+                  <div className="text-xs text-muted-foreground font-sans">
+                    incl. ₹{INR.format(r.transfersOut)} transfers out
+                  </div>
+                ) : null}
               </td>
               <td
                 className={
