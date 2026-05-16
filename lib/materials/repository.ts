@@ -429,6 +429,134 @@ export async function logReturn(
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 6 — material transfers
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Atomically transfer material stock between two projects.
+ *
+ *   source: kind="out", category="transfer_out"  + stock decrement (race-safe)
+ *   dest:   kind="in",  category="transfer_in"   + stock upsert/increment
+ *
+ * Both movement rows share a fresh `transferGroupId`. Project + material names
+ * are denormalized into description strings by the caller.
+ *
+ * Same-project guard is the action layer's responsibility.
+ *
+ * Throws InsufficientStockError if source `stockOnHand < qty`.
+ *
+ * No ledger write — material movements are not cash events (Phase 4 precedent).
+ */
+export async function createMaterialTransfer(
+  input: {
+    sourceProjectId: ObjectId
+    destProjectId: ObjectId
+    materialId: ObjectId
+    qty: number
+    occurredAt: Date
+    notes: string
+    sourceProjectName: string
+    destProjectName: string
+    materialName: string
+  },
+  userId: string
+): Promise<{
+  transferGroupId: ObjectId
+  sourceMovId: ObjectId
+  destMovId: ObjectId
+  sourceRemainingStock: number
+}> {
+  const createdBy = new ObjectId(userId)
+  const transferGroupId = new ObjectId()
+  const session = client.startSession()
+  try {
+    let sourceMovId!: ObjectId
+    let destMovId!: ObjectId
+    let sourceRemainingStock = 0
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const pms = db.collection<ProjectMaterial>("projectMaterials")
+      const movs = db.collection<Omit<MaterialMovement, "_id">>("materialMovements")
+      const now = new Date()
+
+      // Source: conditional decrement (race-safe, same as logConsumption)
+      const decremented = await pms.findOneAndUpdate(
+        {
+          projectId: input.sourceProjectId,
+          materialId: input.materialId,
+          stockOnHand: { $gte: input.qty },
+        },
+        {
+          $inc: { stockOnHand: -input.qty },
+          $set: { updatedAt: now },
+        },
+        { session, returnDocument: "after" }
+      )
+      if (!decremented) {
+        const current = await pms.findOne(
+          {
+            projectId: input.sourceProjectId,
+            materialId: input.materialId,
+          },
+          { session }
+        )
+        const available = current?.stockOnHand ?? 0
+        throw new InsufficientStockError(available)
+      }
+      sourceRemainingStock = decremented.stockOnHand
+
+      // Destination: unconditional upsert/increment (same pattern as recordPurchase)
+      await pms.updateOne(
+        { projectId: input.destProjectId, materialId: input.materialId },
+        {
+          $inc: { stockOnHand: input.qty },
+          $set: { updatedAt: now },
+          $setOnInsert: {
+            projectId: input.destProjectId,
+            materialId: input.materialId,
+            createdAt: now,
+          },
+        },
+        { session, upsert: true }
+      )
+
+      const sourceMovDoc: Omit<MaterialMovement, "_id"> = {
+        projectId: input.sourceProjectId,
+        materialId: input.materialId,
+        kind: "out",
+        category: "transfer_out",
+        qty: input.qty,
+        notes: input.notes || undefined,
+        transferGroupId,
+        occurredAt: input.occurredAt,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await movs.insertOne(sourceMovDoc, { session })
+      sourceMovId = sourceRes.insertedId
+
+      const destMovDoc: Omit<MaterialMovement, "_id"> = {
+        projectId: input.destProjectId,
+        materialId: input.materialId,
+        kind: "in",
+        category: "transfer_in",
+        qty: input.qty,
+        notes: input.notes || undefined,
+        transferGroupId,
+        occurredAt: input.occurredAt,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await movs.insertOne(destMovDoc, { session })
+      destMovId = destRes.insertedId
+    })
+    return { transferGroupId, sourceMovId, destMovId, sourceRemainingStock }
+  } finally {
+    await session.endSession()
+  }
+}
+
 // ---- Errors ----------------------------------------------------------------
 
 export class InsufficientStockError extends Error {
@@ -451,5 +579,20 @@ export class MaterialNotFoundError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "MaterialNotFoundError"
+  }
+}
+
+export class InsufficientStockForReversalError extends Error {
+  readonly available: number
+  readonly projectId: ObjectId
+  readonly projectName: string
+  constructor(available: number, projectId: ObjectId, projectName: string) {
+    super(
+      `Insufficient stock in ${projectName} for reversal (only ${available} available)`
+    )
+    this.name = "InsufficientStockForReversalError"
+    this.available = available
+    this.projectId = projectId
+    this.projectName = projectName
   }
 }
