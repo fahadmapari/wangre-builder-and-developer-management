@@ -63,6 +63,17 @@ await db
   .collection("transactions")
   .createIndex({ reversalOf: 1 }, { sparse: true })
 
+// Phase 6 — transfer pair linkage
+await db
+  .collection("transactions")
+  .createIndex({ transferGroupId: 1 }, { sparse: true })
+await db
+  .collection("materialMovements")
+  .createIndex({ transferGroupId: 1 }, { sparse: true })
+await db
+  .collection("materialMovements")
+  .createIndex({ reversalOf: 1 }, { sparse: true })
+
 console.log(
   "Indexes ensured: users.email (unique); " +
     "projects.createdAt, projects.name; " +
@@ -70,7 +81,9 @@ console.log(
     "transactions.(projectId,occurredAt), transactions.(projectId,kind,voided), transactions.(unitId,voided), transactions.reversalOf sparse; " +
     "materials.name (case-insensitive); " +
     "projectMaterials.(projectId,materialId) unique, projectMaterials.(projectId); " +
-    "materialMovements.(projectId,materialId,occurredAt), materialMovements.(projectId,kind,voided), materialMovements.(transactionId) sparse"
+    "materialMovements.(projectId,materialId,occurredAt), materialMovements.(projectId,kind,voided), materialMovements.(transactionId) sparse" +
+    "; transactions.transferGroupId sparse; " +
+    "materialMovements.reversalOf sparse, materialMovements.transferGroupId sparse"
 )
 
 await client.close()

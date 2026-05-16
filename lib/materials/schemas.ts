@@ -172,6 +172,8 @@ export type MaterialMovement = {
   voided?: boolean
   voidedAt?: Date
   voidedBy?: ObjectId
+  reversalOf?: ObjectId       // Phase 6 — parallels Transaction.reversalOf
+  transferGroupId?: ObjectId  // Phase 6 — parallels Transaction.transferGroupId
   occurredAt: Date
   createdBy: ObjectId
   createdAt: Date
