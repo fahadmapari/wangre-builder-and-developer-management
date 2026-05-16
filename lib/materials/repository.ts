@@ -6,6 +6,8 @@ import {
   CannotReverseTransferError,
   AlreadyReversedError,
 } from "@/lib/transactions/repository"
+import type { MaterialTransferRow } from "@/lib/transfers/schemas"
+import type { Project } from "@/lib/projects/schemas"
 import type {
   CreateMaterialInput,
   Material,
@@ -747,4 +749,132 @@ export class InsufficientStockForReversalError extends Error {
     this.projectId = projectId
     this.projectName = projectName
   }
+}
+
+/**
+ * List material transfers across all projects within a date range.
+ *
+ * Same shape as listMoneyTransfers but on the materialMovements collection.
+ * One row per transferGroupId; status reflects whether the group has any
+ * reversal legs. Date range matches against any original leg's occurredAt.
+ */
+export async function listMaterialTransfers(
+  range: { from: Date; to: Date }
+): Promise<MaterialTransferRow[]> {
+  const db = getDb()
+  const fromDate = range.from
+  const toDate = new Date(range.to)
+  toDate.setHours(23, 59, 59, 999)
+
+  const candidates = await db
+    .collection<MaterialMovement>("materialMovements")
+    .aggregate<{ _id: ObjectId }>([
+      {
+        $match: {
+          transferGroupId: { $exists: true },
+          category: { $in: ["transfer_in", "transfer_out"] },
+          occurredAt: { $gte: fromDate, $lte: toDate },
+          reversalOf: { $exists: false },
+        },
+      },
+      { $group: { _id: "$transferGroupId" } },
+    ])
+    .toArray()
+  const groupIds = candidates.map((c) => c._id)
+  if (groupIds.length === 0) return []
+
+  const allRows = await db
+    .collection<MaterialMovement>("materialMovements")
+    .find({ transferGroupId: { $in: groupIds } })
+    .toArray()
+
+  const byGroup = new Map<string, MaterialMovement[]>()
+  for (const row of allRows) {
+    const key = row.transferGroupId!.toHexString()
+    const bucket = byGroup.get(key) ?? []
+    bucket.push(row)
+    byGroup.set(key, bucket)
+  }
+
+  const projectIds = new Set<string>()
+  const materialIds = new Set<string>()
+  const userIds = new Set<string>()
+  for (const row of allRows) {
+    projectIds.add(row.projectId.toHexString())
+    materialIds.add(row.materialId.toHexString())
+    userIds.add(row.createdBy.toHexString())
+  }
+  const projectsList = await db
+    .collection<Project>("projects")
+    .find({ _id: { $in: [...projectIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const projectNameById = new Map(
+    projectsList.map((p) => [p._id.toHexString(), p.name])
+  )
+  const materialsList = await db
+    .collection<Material>("materials")
+    .find({ _id: { $in: [...materialIds].map((id) => new ObjectId(id)) } })
+    .toArray()
+  const materialById = new Map(
+    materialsList.map((m) => [m._id.toHexString(), m])
+  )
+  const usersList = await db
+    .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+    .find({ _id: { $in: [...userIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name?: string; email?: string }>({ name: 1, email: 1 })
+    .toArray()
+  const userNameById = new Map(
+    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null])
+  )
+
+  const result: MaterialTransferRow[] = []
+  for (const [groupKey, rows] of byGroup) {
+    const originals = rows.filter((r) => !r.reversalOf)
+    const reversals = rows.filter((r) => r.reversalOf)
+    const sourceLeg = originals.find((r) => r.category === "transfer_out")
+    const destLeg = originals.find((r) => r.category === "transfer_in")
+    if (!sourceLeg || !destLeg) continue
+
+    const material = materialById.get(sourceLeg.materialId.toHexString())
+    if (!material) continue
+
+    const reversedAt =
+      reversals.length > 0
+        ? reversals.reduce(
+            (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
+            null as Date | null
+          )
+        : null
+
+    result.push({
+      transferGroupId: groupKey,
+      occurredAt: sourceLeg.occurredAt,
+      sourceProjectId: sourceLeg.projectId.toHexString(),
+      sourceProjectName:
+        projectNameById.get(sourceLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      destProjectId: destLeg.projectId.toHexString(),
+      destProjectName:
+        projectNameById.get(destLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      materialId: sourceLeg.materialId.toHexString(),
+      materialName: material.name,
+      materialUnit: material.unit,
+      materialUnitOther: material.unitOther,
+      qty: sourceLeg.qty,
+      status: reversals.length > 0 ? "reversed" : "active",
+      reversedAt,
+      createdBy: sourceLeg.createdBy.toHexString(),
+      createdByName:
+        userNameById.get(sourceLeg.createdBy.toHexString()) ?? null,
+    })
+  }
+
+  result.sort((a, b) => {
+    const d = b.occurredAt.getTime() - a.occurredAt.getTime()
+    if (d !== 0) return d
+    return b.transferGroupId.localeCompare(a.transferGroupId)
+  })
+  return result
 }
