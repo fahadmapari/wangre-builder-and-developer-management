@@ -128,13 +128,15 @@ export async function reverseMoneyTransferAction(
   }
 
   try {
-    const { sourceRevId, destRevId } = await reverseMoneyTransfer(
+    const { sourceRevId, destRevId, sourceProjectId, destProjectId } = await reverseMoneyTransfer(
       new ObjectId(transferGroupId),
       { occurredAt, notes },
       user.id
     )
     revalidatePath("/transfers")
     revalidatePath("/financials")
+    revalidatePath(`/projects/${sourceProjectId.toHexString()}`)
+    revalidatePath(`/projects/${destProjectId.toHexString()}`)
     return {
       ok: true,
       data: {
@@ -271,12 +273,14 @@ export async function reverseMaterialTransferAction(
   }
 
   try {
-    const { sourceRevId, destRevId } = await reverseMaterialTransfer(
+    const { sourceRevId, destRevId, sourceProjectId, destProjectId } = await reverseMaterialTransfer(
       new ObjectId(transferGroupId),
       { occurredAt, notes },
       user.id
     )
     revalidatePath("/transfers")
+    revalidatePath(`/projects/${sourceProjectId.toHexString()}`)
+    revalidatePath(`/projects/${destProjectId.toHexString()}`)
     return {
       ok: true,
       data: {

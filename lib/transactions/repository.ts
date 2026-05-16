@@ -674,12 +674,19 @@ export async function reverseMoneyTransfer(
   transferGroupId: ObjectId,
   override: { occurredAt?: Date; notes?: string },
   userId: string
-): Promise<{ sourceRevId: ObjectId; destRevId: ObjectId }> {
+): Promise<{
+  sourceRevId: ObjectId
+  destRevId: ObjectId
+  sourceProjectId: ObjectId
+  destProjectId: ObjectId
+}> {
   const createdBy = new ObjectId(userId)
   const session = client.startSession()
   try {
     let sourceRevId!: ObjectId
     let destRevId!: ObjectId
+    let sourceProjectId: ObjectId | null = null
+    let destProjectId: ObjectId | null = null
     await session.withTransaction(async () => {
       const db = getDb()
       const coll = db.collection<Transaction>("transactions")
@@ -702,6 +709,9 @@ export async function reverseMoneyTransfer(
           "Transfer group missing expected source or destination leg."
         )
       }
+
+      sourceProjectId = sourceLeg.projectId
+      destProjectId = destLeg.projectId
 
       if (sourceLeg.voided === true || destLeg.voided === true) {
         throw new CannotReverseTransferError("is-voided")
@@ -760,7 +770,10 @@ export async function reverseMoneyTransfer(
       const destRes = await insertColl.insertOne(destRevDoc, { session })
       destRevId = destRes.insertedId
     })
-    return { sourceRevId, destRevId }
+    if (!sourceProjectId || !destProjectId) {
+      throw new TransferNotFoundError("Transfer group missing project IDs.")
+    }
+    return { sourceRevId, destRevId, sourceProjectId, destProjectId }
   } finally {
     await session.endSession()
   }
