@@ -15,6 +15,7 @@ export function FinancialsView({
   defaultFrom,
   defaultTo,
   projects,
+  otherProjectByRowId,
 }: {
   projectId: string
   rows: Transaction[]
@@ -22,6 +23,7 @@ export function FinancialsView({
   defaultFrom: string
   defaultTo: string
   projects: ProjectPickerEntry[]
+  otherProjectByRowId: Map<string, string>
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -61,7 +63,7 @@ export function FinancialsView({
         </div>
       </div>
       <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
-      <LedgerTable rows={rows} />
+      <LedgerTable rows={rows} otherProjectByRowId={otherProjectByRowId} />
     </div>
   )
 }
