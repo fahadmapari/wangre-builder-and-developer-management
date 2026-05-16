@@ -185,6 +185,7 @@ export default async function ProjectDetailPage({
             role={user.role}
             rows={materialRows}
             catalog={catalogForPicker}
+            projects={projectsForPicker}
           />
         }
         financials={

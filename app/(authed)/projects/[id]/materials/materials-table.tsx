@@ -11,6 +11,11 @@ import {
   TopLevelRecordPurchaseButton,
   type CatalogPickerEntry,
 } from "./record-purchase-dialog"
+import {
+  MaterialTransferButton,
+  type MaterialPickerEntry,
+} from "@/app/(authed)/transfers/material-transfer-dialog"
+import type { ProjectPickerEntry } from "@/app/(authed)/transfers/money-transfer-dialog"
 
 const INR = new Intl.NumberFormat("en-IN")
 
@@ -26,11 +31,13 @@ export function MaterialsTable({
   role,
   rows,
   catalog,
+  projects,
 }: {
   projectId: string
   role: Role
   rows: ProjectMaterialListing[]
   catalog: CatalogPickerEntry[]
+  projects: ProjectPickerEntry[]
 }) {
   const showSpent = role === "admin"
   const isAdmin = role === "admin"
@@ -73,6 +80,7 @@ export function MaterialsTable({
                   isAdmin={isAdmin}
                   showSpent={showSpent}
                   role={role}
+                  projects={projects}
                 />
               ))}
             </tbody>
@@ -89,12 +97,14 @@ function MaterialRow({
   isAdmin,
   showSpent,
   role,
+  projects,
 }: {
   row: ProjectMaterialListing
   projectId: string
   isAdmin: boolean
   showSpent: boolean
   role: Role
+  projects: ProjectPickerEntry[]
 }) {
   const { material, projectMaterial, totalSpent, lastMovementAt } = row
   const stock = projectMaterial?.stockOnHand ?? 0
@@ -121,6 +131,21 @@ function MaterialRow({
               materialName={material.name}
               unitLabel={unitLabel}
               defaultUnitPrice={material.unitPrice}
+            />
+          ) : null}
+          {isAdmin ? (
+            <MaterialTransferButton
+              projects={projects}
+              materials={[
+                {
+                  id: String(material._id),
+                  name: material.name,
+                  unitLabel,
+                } satisfies MaterialPickerEntry,
+              ]}
+              lockedSource={projectId}
+              lockedMaterial={String(material._id)}
+              triggerLabel="Transfer to project"
             />
           ) : null}
           <LogConsumptionButton
