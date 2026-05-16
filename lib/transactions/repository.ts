@@ -213,9 +213,11 @@ export async function listLedger(
 }
 
 export type FinancialTotals = {
-  revenue: number
-  expenses: number
-  net: number
+  revenue: number       // unchanged. INCLUDES transfer_in rows (Phase 5 semantics preserved).
+  expenses: number      // unchanged. INCLUDES transfer_out rows.
+  net: number           // unchanged. revenue - expenses.
+  transfersIn: number   // Phase 6 — subset of revenue: sum of transfer_in rows over the same window.
+  transfersOut: number  // Phase 6 — subset of expenses: sum of transfer_out rows over the same window.
 }
 
 /**
@@ -230,33 +232,76 @@ export async function computeTotals(
 ): Promise<FinancialTotals> {
   const db = getDb()
   const match = { ...buildLedgerMatch(filters), projectId }
-  const rows = await db
+  const [bundle] = await db
     .collection<Transaction>("transactions")
-    .aggregate<{ _id: TransactionKind; total: number }>([
+    .aggregate<{
+      byKind: { _id: TransactionKind; total: number }[]
+      byTransferCategory: { _id: "transfer_in" | "transfer_out"; total: number }[]
+    }>([
       { $match: match },
       {
-        $group: {
-          _id: "$kind",
-          total: {
-            $sum: {
-              $cond: [
-                { $ifNull: ["$reversalOf", false] },
-                { $multiply: ["$amount", -1] },
-                "$amount",
-              ],
+        $facet: {
+          byKind: [
+            {
+              $group: {
+                _id: "$kind",
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
             },
-          },
+          ],
+          byTransferCategory: [
+            {
+              $match: {
+                category: { $in: ["transfer_in", "transfer_out"] },
+              },
+            },
+            {
+              $group: {
+                _id: "$category",
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
+            },
+          ],
         },
       },
     ])
     .toArray()
+
   let revenue = 0
   let expenses = 0
-  for (const r of rows) {
+  for (const r of bundle?.byKind ?? []) {
     if (r._id === "income") revenue = r.total
     else if (r._id === "expense") expenses = r.total
   }
-  return { revenue, expenses, net: revenue - expenses }
+  let transfersIn = 0
+  let transfersOut = 0
+  for (const r of bundle?.byTransferCategory ?? []) {
+    if (r._id === "transfer_in") transfersIn = r.total
+    else if (r._id === "transfer_out") transfersOut = r.total
+  }
+  return {
+    revenue,
+    expenses,
+    net: revenue - expenses,
+    transfersIn,
+    transfersOut,
+  }
 }
 
 export type PerProjectTotals = FinancialTotals & {
@@ -282,34 +327,97 @@ export async function listCrossProjectTotals(
     voided: { $ne: true },
   }
 
-  const grouped = await db
+  type ByKindRow = {
+    _id: { projectId: ObjectId; kind: TransactionKind }
+    total: number
+  }
+  type ByTransferRow = {
+    _id: { projectId: ObjectId; category: "transfer_in" | "transfer_out" }
+    total: number
+  }
+
+  const [bundle] = await db
     .collection<Transaction>("transactions")
-    .aggregate<{ _id: { projectId: ObjectId; kind: TransactionKind }; total: number }>([
+    .aggregate<{
+      byKind: ByKindRow[]
+      byTransferCategory: ByTransferRow[]
+    }>([
       { $match: match },
       {
-        $group: {
-          _id: { projectId: "$projectId", kind: "$kind" },
-          total: {
-            $sum: {
-              $cond: [
-                { $ifNull: ["$reversalOf", false] },
-                { $multiply: ["$amount", -1] },
-                "$amount",
-              ],
+        $facet: {
+          byKind: [
+            {
+              $group: {
+                _id: { projectId: "$projectId", kind: "$kind" },
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
             },
-          },
+          ],
+          byTransferCategory: [
+            {
+              $match: {
+                category: { $in: ["transfer_in", "transfer_out"] },
+              },
+            },
+            {
+              $group: {
+                _id: { projectId: "$projectId", category: "$category" },
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
+            },
+          ],
         },
       },
     ])
     .toArray()
 
-  const byProject = new Map<string, { revenue: number; expenses: number }>()
-  for (const row of grouped) {
+  type PerProjectAcc = {
+    revenue: number
+    expenses: number
+    transfersIn: number
+    transfersOut: number
+  }
+  const byProject = new Map<string, PerProjectAcc>()
+  const ensure = (key: string): PerProjectAcc => {
+    const existing = byProject.get(key)
+    if (existing) return existing
+    const created: PerProjectAcc = {
+      revenue: 0,
+      expenses: 0,
+      transfersIn: 0,
+      transfersOut: 0,
+    }
+    byProject.set(key, created)
+    return created
+  }
+
+  for (const row of bundle?.byKind ?? []) {
     const key = row._id.projectId.toHexString()
-    const entry = byProject.get(key) ?? { revenue: 0, expenses: 0 }
-    if (row._id.kind === "income") entry.revenue = row.total
-    else if (row._id.kind === "expense") entry.expenses = row.total
-    byProject.set(key, entry)
+    const acc = ensure(key)
+    if (row._id.kind === "income") acc.revenue = row.total
+    else if (row._id.kind === "expense") acc.expenses = row.total
+  }
+  for (const row of bundle?.byTransferCategory ?? []) {
+    const key = row._id.projectId.toHexString()
+    const acc = ensure(key)
+    if (row._id.category === "transfer_in") acc.transfersIn = row.total
+    else if (row._id.category === "transfer_out") acc.transfersOut = row.total
   }
 
   // Attach project names. Read all projects (Phase 2 list is small) and join.
@@ -323,6 +431,8 @@ export async function listCrossProjectTotals(
   const perProject: PerProjectTotals[] = []
   let overallRevenue = 0
   let overallExpenses = 0
+  let overallTransfersIn = 0
+  let overallTransfersOut = 0
   for (const [pid, totals] of byProject) {
     perProject.push({
       projectId: pid,
@@ -330,9 +440,13 @@ export async function listCrossProjectTotals(
       revenue: totals.revenue,
       expenses: totals.expenses,
       net: totals.revenue - totals.expenses,
+      transfersIn: totals.transfersIn,
+      transfersOut: totals.transfersOut,
     })
     overallRevenue += totals.revenue
     overallExpenses += totals.expenses
+    overallTransfersIn += totals.transfersIn
+    overallTransfersOut += totals.transfersOut
   }
 
   // Sort by absolute net descending so most-active projects float to the top.
@@ -343,6 +457,8 @@ export async function listCrossProjectTotals(
       revenue: overallRevenue,
       expenses: overallExpenses,
       net: overallRevenue - overallExpenses,
+      transfersIn: overallTransfersIn,
+      transfersOut: overallTransfersOut,
     },
     perProject,
   }

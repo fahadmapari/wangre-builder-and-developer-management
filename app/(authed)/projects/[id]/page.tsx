@@ -120,7 +120,7 @@ export default async function ProjectDetailPage({
       isAdmin ? listLedger(projectObjectId, ledgerFilters) : Promise.resolve([]),
       isAdmin
         ? computeTotals(projectObjectId, ledgerFilters)
-        : Promise.resolve({ revenue: 0, expenses: 0, net: 0 }),
+        : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
     ])
   if (!project) notFound()
 
