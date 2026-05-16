@@ -26,8 +26,24 @@ export function FinancialsView({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tile label="Revenue" value={`₹${INR.format(totals.revenue)}`} />
-        <Tile label="Expenses" value={`₹${INR.format(totals.expenses)}`} />
+        <Tile
+          label="Revenue"
+          value={`₹${INR.format(totals.revenue)}`}
+          subtitle={
+            totals.transfersIn > 0
+              ? `incl. ₹${INR.format(totals.transfersIn)} transfers in`
+              : null
+          }
+        />
+        <Tile
+          label="Expenses"
+          value={`₹${INR.format(totals.expenses)}`}
+          subtitle={
+            totals.transfersOut > 0
+              ? `incl. ₹${INR.format(totals.transfersOut)} transfers out`
+              : null
+          }
+        />
         <Tile
           label="Net"
           value={`${totals.net < 0 ? "−" : ""}₹${INR.format(Math.abs(totals.net))}`}
@@ -53,10 +69,12 @@ export function FinancialsView({
 function Tile({
   label,
   value,
+  subtitle,
   tone,
 }: {
   label: string
   value: string
+  subtitle?: string | null
   tone?: "gain" | "loss"
 }) {
   return (
@@ -67,15 +85,14 @@ function Tile({
       <span
         className={
           "font-mono text-xl " +
-          (tone === "loss"
-            ? "text-destructive"
-            : tone === "gain"
-              ? ""
-              : "")
+          (tone === "loss" ? "text-destructive" : "")
         }
       >
         {value}
       </span>
+      {subtitle ? (
+        <span className="text-xs text-muted-foreground">{subtitle}</span>
+      ) : null}
     </div>
   )
 }
