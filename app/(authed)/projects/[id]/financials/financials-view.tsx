@@ -4,6 +4,7 @@ import { LedgerFilters } from "./ledger-filters"
 import { LedgerTable } from "./ledger-table"
 import { AddIncomeButton } from "./add-income-dialog"
 import { AddExpenseButton } from "./add-expense-dialog"
+import { MoneyTransferButton, type ProjectPickerEntry } from "@/app/(authed)/transfers/money-transfer-dialog"
 
 const INR = new Intl.NumberFormat("en-IN")
 
@@ -13,12 +14,14 @@ export function FinancialsView({
   totals,
   defaultFrom,
   defaultTo,
+  projects,
 }: {
   projectId: string
   rows: Transaction[]
   totals: FinancialTotals
   defaultFrom: string
   defaultTo: string
+  projects: ProjectPickerEntry[]
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -38,6 +41,7 @@ export function FinancialsView({
         <div className="flex gap-2">
           <AddIncomeButton projectId={projectId} />
           <AddExpenseButton projectId={projectId} />
+          <MoneyTransferButton projects={projects} lockedSource={projectId} />
         </div>
       </div>
       <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />

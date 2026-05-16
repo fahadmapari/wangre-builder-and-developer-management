@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/session"
 import {
   countSoldUnits,
   getProject,
+  listProjects,
 } from "@/lib/projects/repository"
 import {
   sumProjectRevenue,
@@ -110,7 +111,7 @@ export default async function ProjectDetailPage({
     includeVoided: sp.voided === "all",
   }
 
-  const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals] =
+  const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals, allProjects] =
     await Promise.all([
       getProject(id),
       countSoldUnits(projectObjectId),
@@ -121,10 +122,15 @@ export default async function ProjectDetailPage({
       isAdmin
         ? computeTotals(projectObjectId, ledgerFilters)
         : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
+      listProjects(),
     ])
   if (!project) notFound()
 
   const totalUnitsAndParkings = project.totalUnits + project.totalParkings
+  const projectsForPicker = allProjects.map((p) => ({
+    id: p._id.toHexString(),
+    name: p.name,
+  }))
   const catalogForPicker = catalog.map((m) => ({
     materialId: String(m._id),
     name: m.name,
@@ -189,6 +195,7 @@ export default async function ProjectDetailPage({
               totals={totals}
               defaultFrom={isoDate(defaultFromDate)}
               defaultTo={isoDate(defaultToDate)}
+              projects={projectsForPicker}
             />
           ) : undefined
         }
