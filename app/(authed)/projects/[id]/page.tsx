@@ -133,7 +133,7 @@ export default async function ProjectDetailPage({
     .filter((r) => r.transferGroupId)
     .map((r) => r.transferGroupId!)
 
-  let otherProjectByRowId = new Map<string, string>()
+  const otherProjectByRowId = new Map<string, string>()
   if (transferGroupIds.length > 0) {
     const db = getDb()
     const peerRows = await db
