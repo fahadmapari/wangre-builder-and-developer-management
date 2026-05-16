@@ -483,3 +483,32 @@ export class CannotReverseError extends Error {
     this.reason = reason
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 6 — transfer error classes
+// ──────────────────────────────────────────────────────────────────────────
+
+export class TransferNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TransferNotFoundError"
+  }
+}
+
+export class AlreadyReversedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "AlreadyReversedError"
+  }
+}
+
+export type CannotReverseTransferReason = "not-original" | "is-voided"
+
+export class CannotReverseTransferError extends Error {
+  readonly reason: CannotReverseTransferReason
+  constructor(reason: CannotReverseTransferReason) {
+    super(`Cannot reverse transfer: ${reason}`)
+    this.name = "CannotReverseTransferError"
+    this.reason = reason
+  }
+}
