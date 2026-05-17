@@ -46,14 +46,24 @@ function HistoryBody({
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
     setState({ status: "loading" })
-    getEntityHistoryAction(entityType, entityId).then((res) => {
-      if (!res.ok) {
-        setState({ status: "error", message: res.error })
-      } else {
-        setState({ status: "ready", events: res.data })
-      }
-    })
+    getEntityHistoryAction(entityType, entityId)
+      .then((res) => {
+        if (cancelled) return
+        if (!res.ok) {
+          setState({ status: "error", message: res.error })
+        } else {
+          setState({ status: "ready", events: res.data })
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setState({ status: "error", message: "Could not load history." })
+      })
+    return () => {
+      cancelled = true
+    }
   }, [open, entityType, entityId])
 
   if (state.status === "loading" || state.status === "idle") {
