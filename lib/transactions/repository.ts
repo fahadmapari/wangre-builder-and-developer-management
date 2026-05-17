@@ -942,7 +942,7 @@ export class AlreadyReversedError extends Error {
   }
 }
 
-export type CannotReverseTransferReason = "not-original" | "is-voided"
+export type CannotReverseTransferReason = "is-voided"
 
 export class CannotReverseTransferError extends Error {
   readonly reason: CannotReverseTransferReason

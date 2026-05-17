@@ -149,11 +149,10 @@ export async function reverseMoneyTransferAction(
       return { ok: false, error: "This transfer has already been reversed." }
     }
     if (err instanceof CannotReverseTransferError) {
-      const msg =
-        err.reason === "is-voided"
-          ? "A leg of this transfer is voided; cannot reverse."
-          : "Only original transfers can be reversed (this row is itself a reversal)."
-      return { ok: false, error: msg }
+      return {
+        ok: false,
+        error: "A leg of this transfer is voided; cannot reverse.",
+      }
     }
     if (err instanceof TransferNotFoundError) {
       return { ok: false, error: "Transfer not found." }
@@ -300,11 +299,10 @@ export async function reverseMaterialTransferAction(
       return { ok: false, error: "This transfer has already been reversed." }
     }
     if (err instanceof CannotReverseTransferError) {
-      const msg =
-        err.reason === "is-voided"
-          ? "A leg of this transfer is voided; cannot reverse."
-          : "Only original transfers can be reversed (this row is itself a reversal)."
-      return { ok: false, error: msg }
+      return {
+        ok: false,
+        error: "A leg of this transfer is voided; cannot reverse.",
+      }
     }
     if (err instanceof TransferNotFoundError) {
       return { ok: false, error: "Transfer not found." }
