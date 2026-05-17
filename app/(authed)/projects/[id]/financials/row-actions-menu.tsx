@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { VoidConfirmDialog } from "./void-confirm-dialog"
 import { ReverseConfirmDialog } from "./reverse-confirm-dialog"
+import { HistorySheet } from "@/app/(authed)/components/history-sheet"
 
 export type RowActionsContext = {
   transactionId: string
@@ -49,29 +50,38 @@ export function RowActionsMenu(ctx: RowActionsContext) {
   const [reverseOpen, setReverseOpen] = useState(false)
   const { canVoid, canReverse } = actionsForRow(ctx)
 
-  if (!canVoid && !canReverse) return null
-
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="ghost">
-            ⋯
+    <div className="flex items-center justify-end gap-1">
+      <HistorySheet
+        entityType="transaction"
+        entityId={ctx.transactionId}
+        trigger={
+          <Button variant="ghost" size="sm">
+            History
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {canVoid ? (
-            <DropdownMenuItem onClick={() => setVoidOpen(true)}>
-              Void
-            </DropdownMenuItem>
-          ) : null}
-          {canReverse ? (
-            <DropdownMenuItem onClick={() => setReverseOpen(true)}>
-              Reverse
-            </DropdownMenuItem>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+      />
+      {canVoid || canReverse ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="ghost">
+              ⋯
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {canVoid ? (
+              <DropdownMenuItem onClick={() => setVoidOpen(true)}>
+                Void
+              </DropdownMenuItem>
+            ) : null}
+            {canReverse ? (
+              <DropdownMenuItem onClick={() => setReverseOpen(true)}>
+                Reverse
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       {canVoid ? (
         <VoidConfirmDialog
           key={voidOpen ? `void-open-${ctx.transactionId}` : "void-closed"}
@@ -96,6 +106,6 @@ export function RowActionsMenu(ctx: RowActionsContext) {
           linkedMaterial={ctx.linkedMaterial}
         />
       ) : null}
-    </>
+    </div>
   )
 }
