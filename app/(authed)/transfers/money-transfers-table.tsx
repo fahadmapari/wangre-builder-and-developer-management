@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import type { MoneyTransferRow } from "@/lib/transfers/schemas"
+import { HistorySheet } from "@/app/(authed)/components/history-sheet"
 import { ReverseTransferButton } from "./reverse-transfer-dialog"
 
 const INR = new Intl.NumberFormat("en-IN")
@@ -60,13 +62,24 @@ export function MoneyTransfersTable({ rows }: { rows: MoneyTransferRow[] }) {
                 {r.createdByName ?? "—"}
               </td>
               <td className="px-4 py-3 text-right">
-                {r.status === "active" ? (
-                  <ReverseTransferButton
-                    transferGroupId={r.transferGroupId}
-                    kind="money"
-                    summary={`${r.sourceProjectName} → ${r.destProjectName} · ₹${INR.format(r.amount)}`}
+                <div className="flex items-center justify-end gap-2">
+                  <HistorySheet
+                    entityType="transaction"
+                    entityId={r.sourceTxId}
+                    trigger={
+                      <Button variant="ghost" size="sm">
+                        History
+                      </Button>
+                    }
                   />
-                ) : null}
+                  {r.status === "active" ? (
+                    <ReverseTransferButton
+                      transferGroupId={r.transferGroupId}
+                      kind="money"
+                      summary={`${r.sourceProjectName} → ${r.destProjectName} · ₹${INR.format(r.amount)}`}
+                    />
+                  ) : null}
+                </div>
               </td>
             </tr>
           ))}

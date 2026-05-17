@@ -968,6 +968,7 @@ export async function listMoneyTransfers(
 
     result.push({
       transferGroupId: groupKey,
+      sourceTxId: sourceLeg._id.toHexString(),
       occurredAt: sourceLeg.occurredAt,
       sourceProjectId: sourceLeg.projectId.toHexString(),
       sourceProjectName:

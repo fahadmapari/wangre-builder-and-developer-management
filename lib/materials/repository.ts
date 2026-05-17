@@ -862,6 +862,7 @@ export async function listMaterialTransfers(
 
     result.push({
       transferGroupId: groupKey,
+      sourceMovId: sourceLeg._id.toHexString(),
       occurredAt: sourceLeg.occurredAt,
       sourceProjectId: sourceLeg.projectId.toHexString(),
       sourceProjectName:
