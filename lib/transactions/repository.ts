@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
 import type { Unit, Project } from "@/lib/projects/schemas"
+import type { MoneyTransferRow } from "@/lib/transfers/schemas"
 import type { Transaction, TransactionKind, LedgerFilters } from "./schemas"
 
 /**
@@ -212,9 +213,11 @@ export async function listLedger(
 }
 
 export type FinancialTotals = {
-  revenue: number
-  expenses: number
-  net: number
+  revenue: number       // unchanged. INCLUDES transfer_in rows (Phase 5 semantics preserved).
+  expenses: number      // unchanged. INCLUDES transfer_out rows.
+  net: number           // unchanged. revenue - expenses.
+  transfersIn: number   // Phase 6 — subset of revenue: sum of transfer_in rows over the same window.
+  transfersOut: number  // Phase 6 — subset of expenses: sum of transfer_out rows over the same window.
 }
 
 /**
@@ -229,33 +232,76 @@ export async function computeTotals(
 ): Promise<FinancialTotals> {
   const db = getDb()
   const match = { ...buildLedgerMatch(filters), projectId }
-  const rows = await db
+  const [bundle] = await db
     .collection<Transaction>("transactions")
-    .aggregate<{ _id: TransactionKind; total: number }>([
+    .aggregate<{
+      byKind: { _id: TransactionKind; total: number }[]
+      byTransferCategory: { _id: "transfer_in" | "transfer_out"; total: number }[]
+    }>([
       { $match: match },
       {
-        $group: {
-          _id: "$kind",
-          total: {
-            $sum: {
-              $cond: [
-                { $ifNull: ["$reversalOf", false] },
-                { $multiply: ["$amount", -1] },
-                "$amount",
-              ],
+        $facet: {
+          byKind: [
+            {
+              $group: {
+                _id: "$kind",
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
             },
-          },
+          ],
+          byTransferCategory: [
+            {
+              $match: {
+                category: { $in: ["transfer_in", "transfer_out"] },
+              },
+            },
+            {
+              $group: {
+                _id: "$category",
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
+            },
+          ],
         },
       },
     ])
     .toArray()
+
   let revenue = 0
   let expenses = 0
-  for (const r of rows) {
+  for (const r of bundle?.byKind ?? []) {
     if (r._id === "income") revenue = r.total
     else if (r._id === "expense") expenses = r.total
   }
-  return { revenue, expenses, net: revenue - expenses }
+  let transfersIn = 0
+  let transfersOut = 0
+  for (const r of bundle?.byTransferCategory ?? []) {
+    if (r._id === "transfer_in") transfersIn = r.total
+    else if (r._id === "transfer_out") transfersOut = r.total
+  }
+  return {
+    revenue,
+    expenses,
+    net: revenue - expenses,
+    transfersIn,
+    transfersOut,
+  }
 }
 
 export type PerProjectTotals = FinancialTotals & {
@@ -281,34 +327,97 @@ export async function listCrossProjectTotals(
     voided: { $ne: true },
   }
 
-  const grouped = await db
+  type ByKindRow = {
+    _id: { projectId: ObjectId; kind: TransactionKind }
+    total: number
+  }
+  type ByTransferRow = {
+    _id: { projectId: ObjectId; category: "transfer_in" | "transfer_out" }
+    total: number
+  }
+
+  const [bundle] = await db
     .collection<Transaction>("transactions")
-    .aggregate<{ _id: { projectId: ObjectId; kind: TransactionKind }; total: number }>([
+    .aggregate<{
+      byKind: ByKindRow[]
+      byTransferCategory: ByTransferRow[]
+    }>([
       { $match: match },
       {
-        $group: {
-          _id: { projectId: "$projectId", kind: "$kind" },
-          total: {
-            $sum: {
-              $cond: [
-                { $ifNull: ["$reversalOf", false] },
-                { $multiply: ["$amount", -1] },
-                "$amount",
-              ],
+        $facet: {
+          byKind: [
+            {
+              $group: {
+                _id: { projectId: "$projectId", kind: "$kind" },
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
             },
-          },
+          ],
+          byTransferCategory: [
+            {
+              $match: {
+                category: { $in: ["transfer_in", "transfer_out"] },
+              },
+            },
+            {
+              $group: {
+                _id: { projectId: "$projectId", category: "$category" },
+                total: {
+                  $sum: {
+                    $cond: [
+                      { $ifNull: ["$reversalOf", false] },
+                      { $multiply: ["$amount", -1] },
+                      "$amount",
+                    ],
+                  },
+                },
+              },
+            },
+          ],
         },
       },
     ])
     .toArray()
 
-  const byProject = new Map<string, { revenue: number; expenses: number }>()
-  for (const row of grouped) {
+  type PerProjectAcc = {
+    revenue: number
+    expenses: number
+    transfersIn: number
+    transfersOut: number
+  }
+  const byProject = new Map<string, PerProjectAcc>()
+  const ensure = (key: string): PerProjectAcc => {
+    const existing = byProject.get(key)
+    if (existing) return existing
+    const created: PerProjectAcc = {
+      revenue: 0,
+      expenses: 0,
+      transfersIn: 0,
+      transfersOut: 0,
+    }
+    byProject.set(key, created)
+    return created
+  }
+
+  for (const row of bundle?.byKind ?? []) {
     const key = row._id.projectId.toHexString()
-    const entry = byProject.get(key) ?? { revenue: 0, expenses: 0 }
-    if (row._id.kind === "income") entry.revenue = row.total
-    else if (row._id.kind === "expense") entry.expenses = row.total
-    byProject.set(key, entry)
+    const acc = ensure(key)
+    if (row._id.kind === "income") acc.revenue = row.total
+    else if (row._id.kind === "expense") acc.expenses = row.total
+  }
+  for (const row of bundle?.byTransferCategory ?? []) {
+    const key = row._id.projectId.toHexString()
+    const acc = ensure(key)
+    if (row._id.category === "transfer_in") acc.transfersIn = row.total
+    else if (row._id.category === "transfer_out") acc.transfersOut = row.total
   }
 
   // Attach project names. Read all projects (Phase 2 list is small) and join.
@@ -322,6 +431,8 @@ export async function listCrossProjectTotals(
   const perProject: PerProjectTotals[] = []
   let overallRevenue = 0
   let overallExpenses = 0
+  let overallTransfersIn = 0
+  let overallTransfersOut = 0
   for (const [pid, totals] of byProject) {
     perProject.push({
       projectId: pid,
@@ -329,9 +440,13 @@ export async function listCrossProjectTotals(
       revenue: totals.revenue,
       expenses: totals.expenses,
       net: totals.revenue - totals.expenses,
+      transfersIn: totals.transfersIn,
+      transfersOut: totals.transfersOut,
     })
     overallRevenue += totals.revenue
     overallExpenses += totals.expenses
+    overallTransfersIn += totals.transfersIn
+    overallTransfersOut += totals.transfersOut
   }
 
   // Sort by absolute net descending so most-active projects float to the top.
@@ -342,6 +457,8 @@ export async function listCrossProjectTotals(
       revenue: overallRevenue,
       expenses: overallExpenses,
       net: overallRevenue - overallExpenses,
+      transfersIn: overallTransfersIn,
+      transfersOut: overallTransfersOut,
     },
     perProject,
   }
@@ -459,6 +576,329 @@ export async function reverseTransaction(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Phase 6 — money transfers
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Atomically write the two paired ledger rows for a money transfer.
+ *
+ *   source: kind="expense", category="transfer_out"
+ *   dest:   kind="income",  category="transfer_in"
+ *
+ * Both rows share a fresh `transferGroupId`. Project names are denormalized
+ * into the description string by the caller; rename-after-write does not
+ * back-fill (consistent with Phase 4's "Purchase: {materialName}").
+ *
+ * Same-project guard is the action layer's responsibility (cheap pre-session
+ * check). This function does not re-check; callers must.
+ */
+export async function createMoneyTransfer(
+  input: {
+    sourceProjectId: ObjectId
+    destProjectId: ObjectId
+    amount: number
+    occurredAt: Date
+    description: string
+    notes: string
+    sourceProjectName: string
+    destProjectName: string
+  },
+  userId: string
+): Promise<{ transferGroupId: ObjectId; sourceTxId: ObjectId; destTxId: ObjectId }> {
+  const createdBy = new ObjectId(userId)
+  const transferGroupId = new ObjectId()
+  const session = client.startSession()
+  try {
+    let sourceTxId!: ObjectId
+    let destTxId!: ObjectId
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const txns = db.collection<Omit<Transaction, "_id">>("transactions")
+      const now = new Date()
+
+      const sourceDoc: Omit<Transaction, "_id"> = {
+        projectId: input.sourceProjectId,
+        unitId: null,
+        kind: "expense",
+        category: "transfer_out",
+        amount: input.amount,
+        currency: "INR",
+        description: `Transfer to ${input.destProjectName}: ${input.description}`,
+        occurredAt: input.occurredAt,
+        notes: input.notes || undefined,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await txns.insertOne(sourceDoc, { session })
+      sourceTxId = sourceRes.insertedId
+
+      const destDoc: Omit<Transaction, "_id"> = {
+        projectId: input.destProjectId,
+        unitId: null,
+        kind: "income",
+        category: "transfer_in",
+        amount: input.amount,
+        currency: "INR",
+        description: `Transfer from ${input.sourceProjectName}: ${input.description}`,
+        occurredAt: input.occurredAt,
+        notes: input.notes || undefined,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await txns.insertOne(destDoc, { session })
+      destTxId = destRes.insertedId
+    })
+    return { transferGroupId, sourceTxId, destTxId }
+  } finally {
+    await session.endSession()
+  }
+}
+
+/**
+ * Reverse a money transfer atomically. Inserts two new ledger rows (a "reversal
+ * pair") sharing the same transferGroupId as the original pair. Each reversal
+ * leg carries reversalOf pointing to its corresponding original leg.
+ *
+ * Inside withTransaction:
+ *   1. Find both legs by transferGroupId. Expect exactly 2 rows.
+ *   2. Reject if either leg already has reversalOf (meaning the looked-up rows
+ *      are themselves reversals) or voided=true.
+ *   3. Reject if any row in the collection has reversalOf pointing to either leg
+ *      (already-reversed guard — serialized via the surrounding withTransaction).
+ *   4. Insert two reversal rows: swapped kind/category, same amount, same
+ *      transferGroupId, reversalOf pointing to the matching original leg.
+ */
+export async function reverseMoneyTransfer(
+  transferGroupId: ObjectId,
+  override: { occurredAt?: Date; notes?: string },
+  userId: string
+): Promise<{
+  sourceRevId: ObjectId
+  destRevId: ObjectId
+  sourceProjectId: ObjectId
+  destProjectId: ObjectId
+}> {
+  const createdBy = new ObjectId(userId)
+  const session = client.startSession()
+  try {
+    let sourceRevId!: ObjectId
+    let destRevId!: ObjectId
+    let sourceProjectId: ObjectId | null = null
+    let destProjectId: ObjectId | null = null
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const coll = db.collection<Transaction>("transactions")
+      const insertColl = db.collection<Omit<Transaction, "_id">>("transactions")
+
+      const legs = await coll.find({ transferGroupId }, { session }).toArray()
+      // Filter to ONLY the originals — a reversed group has 4 rows; we want the 2
+      // without reversalOf. If we find != 2 originals, throw.
+      const originals = legs.filter((l) => !l.reversalOf)
+      if (originals.length !== 2) {
+        throw new TransferNotFoundError(
+          "Transfer not found or not a valid pair of originals."
+        )
+      }
+
+      const sourceLeg = originals.find((l) => l.category === "transfer_out")
+      const destLeg = originals.find((l) => l.category === "transfer_in")
+      if (!sourceLeg || !destLeg) {
+        throw new TransferNotFoundError(
+          "Transfer group missing expected source or destination leg."
+        )
+      }
+
+      sourceProjectId = sourceLeg.projectId
+      destProjectId = destLeg.projectId
+
+      if (sourceLeg.voided === true || destLeg.voided === true) {
+        throw new CannotReverseTransferError("is-voided")
+      }
+
+      // Already-reversed guard: any row pointing reversalOf at either leg.
+      const existingReversal = await coll.findOne(
+        { reversalOf: { $in: [sourceLeg._id, destLeg._id] } },
+        { session }
+      )
+      if (existingReversal) {
+        throw new AlreadyReversedError(
+          "This transfer has already been reversed."
+        )
+      }
+
+      const now = new Date()
+      const occurredAt = override.occurredAt ?? now
+      const notes = override.notes || undefined
+
+      // Reversal of source leg (originally expense/transfer_out) becomes
+      // income/transfer_in for the source project — it gets the money back.
+      const sourceRevDoc: Omit<Transaction, "_id"> = {
+        projectId: sourceLeg.projectId,
+        unitId: null,
+        kind: "income",
+        category: "transfer_in",
+        amount: sourceLeg.amount,
+        currency: "INR",
+        description: `Reversal — ${sourceLeg.description}`,
+        occurredAt,
+        notes,
+        reversalOf: sourceLeg._id,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await insertColl.insertOne(sourceRevDoc, { session })
+      sourceRevId = sourceRes.insertedId
+
+      const destRevDoc: Omit<Transaction, "_id"> = {
+        projectId: destLeg.projectId,
+        unitId: null,
+        kind: "expense",
+        category: "transfer_out",
+        amount: destLeg.amount,
+        currency: "INR",
+        description: `Reversal — ${destLeg.description}`,
+        occurredAt,
+        notes,
+        reversalOf: destLeg._id,
+        transferGroupId,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await insertColl.insertOne(destRevDoc, { session })
+      destRevId = destRes.insertedId
+    })
+    if (!sourceProjectId || !destProjectId) {
+      throw new TransferNotFoundError("Transfer group missing project IDs.")
+    }
+    return { sourceRevId, destRevId, sourceProjectId, destProjectId }
+  } finally {
+    await session.endSession()
+  }
+}
+
+/**
+ * List money transfers across all projects within a date range.
+ *
+ * Groups rows in the `transactions` collection by `transferGroupId`. Each
+ * active transfer is a 2-row group (source + dest, neither with reversalOf);
+ * each reversed transfer is a 4-row group (2 originals + 2 reversals).
+ *
+ * Returns one row per group, taking metadata from the source leg (kind=expense,
+ * category=transfer_out). Status is "reversed" iff any row in the group has
+ * reversalOf set.
+ *
+ * Date range applies to the source leg's `occurredAt`. Reversed-but-original-
+ * before-window groups are still returned if their original date is in range.
+ */
+export async function listMoneyTransfers(
+  range: { from: Date; to: Date }
+): Promise<MoneyTransferRow[]> {
+  const db = getDb()
+  const fromDate = range.from
+  const toDate = endOfDay(range.to)
+
+  const candidates = await db
+    .collection<Transaction>("transactions")
+    .aggregate<{ _id: ObjectId }>([
+      {
+        $match: {
+          transferGroupId: { $exists: true },
+          category: { $in: ["transfer_in", "transfer_out"] },
+          occurredAt: { $gte: fromDate, $lte: toDate },
+          reversalOf: { $exists: false },
+        },
+      },
+      { $group: { _id: "$transferGroupId" } },
+    ])
+    .toArray()
+  const groupIds = candidates.map((c) => c._id)
+  if (groupIds.length === 0) return []
+
+  const allRows = await db
+    .collection<Transaction>("transactions")
+    .find({ transferGroupId: { $in: groupIds } })
+    .toArray()
+
+  const byGroup = new Map<string, Transaction[]>()
+  for (const row of allRows) {
+    const key = row.transferGroupId!.toHexString()
+    const bucket = byGroup.get(key) ?? []
+    bucket.push(row)
+    byGroup.set(key, bucket)
+  }
+
+  const projectIds = new Set<string>()
+  const userIds = new Set<string>()
+  for (const row of allRows) {
+    projectIds.add(row.projectId.toHexString())
+    userIds.add(row.createdBy.toHexString())
+  }
+  const projectsList = await db
+    .collection<Project>("projects")
+    .find({ _id: { $in: [...projectIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const projectNameById = new Map(
+    projectsList.map((p) => [p._id.toHexString(), p.name])
+  )
+  const usersList = await db
+    .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+    .find({ _id: { $in: [...userIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name?: string; email?: string }>({ name: 1, email: 1 })
+    .toArray()
+  const userNameById = new Map(
+    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null])
+  )
+
+  const result: MoneyTransferRow[] = []
+  for (const [groupKey, rows] of byGroup) {
+    const originals = rows.filter((r) => !r.reversalOf)
+    const reversals = rows.filter((r) => r.reversalOf)
+    const sourceLeg = originals.find((r) => r.category === "transfer_out")
+    const destLeg = originals.find((r) => r.category === "transfer_in")
+    if (!sourceLeg || !destLeg) continue
+
+    const reversedAt =
+      reversals.length > 0
+        ? reversals.reduce(
+            (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
+            null as Date | null
+          )
+        : null
+
+    result.push({
+      transferGroupId: groupKey,
+      occurredAt: sourceLeg.occurredAt,
+      sourceProjectId: sourceLeg.projectId.toHexString(),
+      sourceProjectName:
+        projectNameById.get(sourceLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      destProjectId: destLeg.projectId.toHexString(),
+      destProjectName:
+        projectNameById.get(destLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      amount: sourceLeg.amount,
+      description: sourceLeg.description,
+      status: reversals.length > 0 ? "reversed" : "active",
+      reversedAt,
+      createdBy: sourceLeg.createdBy.toHexString(),
+      createdByName:
+        userNameById.get(sourceLeg.createdBy.toHexString()) ?? null,
+    })
+  }
+
+  result.sort((a, b) => {
+    const d = b.occurredAt.getTime() - a.occurredAt.getTime()
+    if (d !== 0) return d
+    return b.transferGroupId.localeCompare(a.transferGroupId)
+  })
+  return result
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Phase 5 — error classes
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -480,6 +920,35 @@ export class CannotReverseError extends Error {
   constructor(reason: CannotReverseReason) {
     super(`Cannot reverse: ${reason}`)
     this.name = "CannotReverseError"
+    this.reason = reason
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 6 — transfer error classes
+// ──────────────────────────────────────────────────────────────────────────
+
+export class TransferNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TransferNotFoundError"
+  }
+}
+
+export class AlreadyReversedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "AlreadyReversedError"
+  }
+}
+
+export type CannotReverseTransferReason = "not-original" | "is-voided"
+
+export class CannotReverseTransferError extends Error {
+  readonly reason: CannotReverseTransferReason
+  constructor(reason: CannotReverseTransferReason) {
+    super(`Cannot reverse transfer: ${reason}`)
+    this.name = "CannotReverseTransferError"
     this.reason = reason
   }
 }

@@ -1,6 +1,13 @@
 import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
 import type { Transaction } from "@/lib/transactions/schemas"
+import {
+  TransferNotFoundError,
+  CannotReverseTransferError,
+  AlreadyReversedError,
+} from "@/lib/transactions/repository"
+import type { MaterialTransferRow } from "@/lib/transfers/schemas"
+import type { Project } from "@/lib/projects/schemas"
 import type {
   CreateMaterialInput,
   Material,
@@ -429,6 +436,294 @@ export async function logReturn(
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 6 — material transfers
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Atomically transfer material stock between two projects.
+ *
+ *   source: kind="out", category="transfer_out"  + stock decrement (race-safe)
+ *   dest:   kind="in",  category="transfer_in"   + stock upsert/increment
+ *
+ * Both movement rows share a fresh `transferGroupId`. Project + material names
+ * are denormalized into description strings by the caller.
+ *
+ * Same-project guard is the action layer's responsibility.
+ *
+ * Throws InsufficientStockError if source `stockOnHand < qty`.
+ *
+ * No ledger write — material movements are not cash events (Phase 4 precedent).
+ */
+export async function createMaterialTransfer(
+  input: {
+    sourceProjectId: ObjectId
+    destProjectId: ObjectId
+    materialId: ObjectId
+    qty: number
+    occurredAt: Date
+    notes: string
+    sourceProjectName: string
+    destProjectName: string
+    materialName: string
+  },
+  userId: string
+): Promise<{
+  transferGroupId: ObjectId
+  sourceMovId: ObjectId
+  destMovId: ObjectId
+  sourceRemainingStock: number
+}> {
+  const createdBy = new ObjectId(userId)
+  const transferGroupId = new ObjectId()
+  const session = client.startSession()
+  try {
+    let sourceMovId!: ObjectId
+    let destMovId!: ObjectId
+    let sourceRemainingStock = 0
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const pms = db.collection<ProjectMaterial>("projectMaterials")
+      const movs = db.collection<Omit<MaterialMovement, "_id">>("materialMovements")
+      const now = new Date()
+
+      // Source: conditional decrement (race-safe, same as logConsumption)
+      const decremented = await pms.findOneAndUpdate(
+        {
+          projectId: input.sourceProjectId,
+          materialId: input.materialId,
+          stockOnHand: { $gte: input.qty },
+        },
+        {
+          $inc: { stockOnHand: -input.qty },
+          $set: { updatedAt: now },
+        },
+        { session, returnDocument: "after" }
+      )
+      if (!decremented) {
+        const current = await pms.findOne(
+          {
+            projectId: input.sourceProjectId,
+            materialId: input.materialId,
+          },
+          { session }
+        )
+        const available = current?.stockOnHand ?? 0
+        throw new InsufficientStockError(available)
+      }
+      sourceRemainingStock = decremented.stockOnHand
+
+      // Destination: unconditional upsert/increment (same pattern as recordPurchase)
+      await pms.updateOne(
+        { projectId: input.destProjectId, materialId: input.materialId },
+        {
+          $inc: { stockOnHand: input.qty },
+          $set: { updatedAt: now },
+          $setOnInsert: {
+            projectId: input.destProjectId,
+            materialId: input.materialId,
+            createdAt: now,
+          },
+        },
+        { session, upsert: true }
+      )
+
+      const sourceMovDoc: Omit<MaterialMovement, "_id"> = {
+        projectId: input.sourceProjectId,
+        materialId: input.materialId,
+        kind: "out",
+        category: "transfer_out",
+        qty: input.qty,
+        notes: input.notes || undefined,
+        transferGroupId,
+        occurredAt: input.occurredAt,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await movs.insertOne(sourceMovDoc, { session })
+      sourceMovId = sourceRes.insertedId
+
+      const destMovDoc: Omit<MaterialMovement, "_id"> = {
+        projectId: input.destProjectId,
+        materialId: input.materialId,
+        kind: "in",
+        category: "transfer_in",
+        qty: input.qty,
+        notes: input.notes || undefined,
+        transferGroupId,
+        occurredAt: input.occurredAt,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await movs.insertOne(destMovDoc, { session })
+      destMovId = destRes.insertedId
+    })
+    return { transferGroupId, sourceMovId, destMovId, sourceRemainingStock }
+  } finally {
+    await session.endSession()
+  }
+}
+
+/**
+ * Reverse a material transfer atomically:
+ *   - Source project: stockOnHand += qty (unconditional upsert, can't fail)
+ *   - Destination project: stockOnHand -= qty (race-safe conditional; throws
+ *     InsufficientStockForReversalError if dest has consumed/transferred-out
+ *     stock since the original transfer)
+ *   - Insert two new materialMovements rows (reversal pair) sharing the same
+ *     transferGroupId as the original pair, each with reversalOf pointing at
+ *     its corresponding original leg.
+ *
+ * Inside withTransaction the same already-reversed guard pattern from
+ * reverseMoneyTransfer applies: any existing row with reversalOf pointing at
+ * either leg → AlreadyReversedError.
+ */
+export async function reverseMaterialTransfer(
+  transferGroupId: ObjectId,
+  override: { occurredAt?: Date; notes?: string },
+  userId: string
+): Promise<{
+  sourceRevId: ObjectId
+  destRevId: ObjectId
+  sourceProjectId: ObjectId
+  destProjectId: ObjectId
+}> {
+  const createdBy = new ObjectId(userId)
+  const session = client.startSession()
+  try {
+    let sourceRevId!: ObjectId
+    let destRevId!: ObjectId
+    let sourceProjectId: ObjectId | null = null
+    let destProjectId: ObjectId | null = null
+    await session.withTransaction(async () => {
+      const db = getDb()
+      const movs = db.collection<MaterialMovement>("materialMovements")
+      const insertColl = db.collection<Omit<MaterialMovement, "_id">>("materialMovements")
+      const pms = db.collection<ProjectMaterial>("projectMaterials")
+
+      const legs = await movs.find({ transferGroupId }, { session }).toArray()
+      const originals = legs.filter((l) => !l.reversalOf)
+      if (originals.length !== 2) {
+        throw new TransferNotFoundError(
+          "Material transfer not found or not a valid pair of originals."
+        )
+      }
+
+      const sourceLeg = originals.find((l) => l.category === "transfer_out")
+      const destLeg = originals.find((l) => l.category === "transfer_in")
+      if (!sourceLeg || !destLeg) {
+        throw new TransferNotFoundError(
+          "Material transfer group missing expected source or destination leg."
+        )
+      }
+
+      sourceProjectId = sourceLeg.projectId
+      destProjectId = destLeg.projectId
+
+      if (sourceLeg.voided === true || destLeg.voided === true) {
+        throw new CannotReverseTransferError("is-voided")
+      }
+
+      const existingReversal = await movs.findOne(
+        { reversalOf: { $in: [sourceLeg._id, destLeg._id] } },
+        { session }
+      )
+      if (existingReversal) {
+        throw new AlreadyReversedError(
+          "This material transfer has already been reversed."
+        )
+      }
+
+      const qty = sourceLeg.qty
+      const now = new Date()
+      const occurredAt = override.occurredAt ?? now
+      const notes = override.notes || undefined
+
+      // Source: restore stock (unconditional upsert; can't fail).
+      await pms.updateOne(
+        { projectId: sourceLeg.projectId, materialId: sourceLeg.materialId },
+        {
+          $inc: { stockOnHand: qty },
+          $set: { updatedAt: now },
+          $setOnInsert: {
+            projectId: sourceLeg.projectId,
+            materialId: sourceLeg.materialId,
+            createdAt: now,
+          },
+        },
+        { session, upsert: true }
+      )
+
+      // Destination: conditional decrement (can fail if stock was used since).
+      const destDecremented = await pms.findOneAndUpdate(
+        {
+          projectId: destLeg.projectId,
+          materialId: destLeg.materialId,
+          stockOnHand: { $gte: qty },
+        },
+        {
+          $inc: { stockOnHand: -qty },
+          $set: { updatedAt: now },
+        },
+        { session, returnDocument: "after" }
+      )
+      if (!destDecremented) {
+        const current = await pms.findOne(
+          { projectId: destLeg.projectId, materialId: destLeg.materialId },
+          { session }
+        )
+        const available = current?.stockOnHand ?? 0
+        const destProject = await db
+          .collection<{ _id: ObjectId; name: string }>("projects")
+          .findOne({ _id: destLeg.projectId }, { session })
+        throw new InsufficientStockForReversalError(
+          available,
+          destLeg.projectId,
+          destProject?.name ?? "(unknown project)"
+        )
+      }
+
+      const sourceRevDoc: Omit<MaterialMovement, "_id"> = {
+        projectId: sourceLeg.projectId,
+        materialId: sourceLeg.materialId,
+        kind: "in",
+        category: "transfer_in",
+        qty,
+        notes,
+        reversalOf: sourceLeg._id,
+        transferGroupId,
+        occurredAt,
+        createdBy,
+        createdAt: now,
+      }
+      const sourceRes = await insertColl.insertOne(sourceRevDoc, { session })
+      sourceRevId = sourceRes.insertedId
+
+      const destRevDoc: Omit<MaterialMovement, "_id"> = {
+        projectId: destLeg.projectId,
+        materialId: destLeg.materialId,
+        kind: "out",
+        category: "transfer_out",
+        qty,
+        notes,
+        reversalOf: destLeg._id,
+        transferGroupId,
+        occurredAt,
+        createdBy,
+        createdAt: now,
+      }
+      const destRes = await insertColl.insertOne(destRevDoc, { session })
+      destRevId = destRes.insertedId
+    })
+    if (!sourceProjectId || !destProjectId) {
+      throw new TransferNotFoundError("Material transfer group missing project IDs.")
+    }
+    return { sourceRevId, destRevId, sourceProjectId, destProjectId }
+  } finally {
+    await session.endSession()
+  }
+}
+
 // ---- Errors ----------------------------------------------------------------
 
 export class InsufficientStockError extends Error {
@@ -452,4 +747,147 @@ export class MaterialNotFoundError extends Error {
     super(message)
     this.name = "MaterialNotFoundError"
   }
+}
+
+export class InsufficientStockForReversalError extends Error {
+  readonly available: number
+  readonly projectId: ObjectId
+  readonly projectName: string
+  constructor(available: number, projectId: ObjectId, projectName: string) {
+    super(
+      `Insufficient stock in ${projectName} for reversal (only ${available} available)`
+    )
+    this.name = "InsufficientStockForReversalError"
+    this.available = available
+    this.projectId = projectId
+    this.projectName = projectName
+  }
+}
+
+/**
+ * List material transfers across all projects within a date range.
+ *
+ * Same shape as listMoneyTransfers but on the materialMovements collection.
+ * One row per transferGroupId; status reflects whether the group has any
+ * reversal legs. Date range matches against any original leg's occurredAt.
+ */
+export async function listMaterialTransfers(
+  range: { from: Date; to: Date }
+): Promise<MaterialTransferRow[]> {
+  const db = getDb()
+  const fromDate = range.from
+  const toDate = new Date(range.to)
+  toDate.setHours(23, 59, 59, 999)
+
+  const candidates = await db
+    .collection<MaterialMovement>("materialMovements")
+    .aggregate<{ _id: ObjectId }>([
+      {
+        $match: {
+          transferGroupId: { $exists: true },
+          category: { $in: ["transfer_in", "transfer_out"] },
+          occurredAt: { $gte: fromDate, $lte: toDate },
+          reversalOf: { $exists: false },
+        },
+      },
+      { $group: { _id: "$transferGroupId" } },
+    ])
+    .toArray()
+  const groupIds = candidates.map((c) => c._id)
+  if (groupIds.length === 0) return []
+
+  const allRows = await db
+    .collection<MaterialMovement>("materialMovements")
+    .find({ transferGroupId: { $in: groupIds } })
+    .toArray()
+
+  const byGroup = new Map<string, MaterialMovement[]>()
+  for (const row of allRows) {
+    const key = row.transferGroupId!.toHexString()
+    const bucket = byGroup.get(key) ?? []
+    bucket.push(row)
+    byGroup.set(key, bucket)
+  }
+
+  const projectIds = new Set<string>()
+  const materialIds = new Set<string>()
+  const userIds = new Set<string>()
+  for (const row of allRows) {
+    projectIds.add(row.projectId.toHexString())
+    materialIds.add(row.materialId.toHexString())
+    userIds.add(row.createdBy.toHexString())
+  }
+  const projectsList = await db
+    .collection<Project>("projects")
+    .find({ _id: { $in: [...projectIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const projectNameById = new Map(
+    projectsList.map((p) => [p._id.toHexString(), p.name])
+  )
+  const materialsList = await db
+    .collection<Material>("materials")
+    .find({ _id: { $in: [...materialIds].map((id) => new ObjectId(id)) } })
+    .toArray()
+  const materialById = new Map(
+    materialsList.map((m) => [m._id.toHexString(), m])
+  )
+  const usersList = await db
+    .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+    .find({ _id: { $in: [...userIds].map((id) => new ObjectId(id)) } })
+    .project<{ _id: ObjectId; name?: string; email?: string }>({ name: 1, email: 1 })
+    .toArray()
+  const userNameById = new Map(
+    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null])
+  )
+
+  const result: MaterialTransferRow[] = []
+  for (const [groupKey, rows] of byGroup) {
+    const originals = rows.filter((r) => !r.reversalOf)
+    const reversals = rows.filter((r) => r.reversalOf)
+    const sourceLeg = originals.find((r) => r.category === "transfer_out")
+    const destLeg = originals.find((r) => r.category === "transfer_in")
+    if (!sourceLeg || !destLeg) continue
+
+    const material = materialById.get(sourceLeg.materialId.toHexString())
+    if (!material) continue
+
+    const reversedAt =
+      reversals.length > 0
+        ? reversals.reduce(
+            (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
+            null as Date | null
+          )
+        : null
+
+    result.push({
+      transferGroupId: groupKey,
+      occurredAt: sourceLeg.occurredAt,
+      sourceProjectId: sourceLeg.projectId.toHexString(),
+      sourceProjectName:
+        projectNameById.get(sourceLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      destProjectId: destLeg.projectId.toHexString(),
+      destProjectName:
+        projectNameById.get(destLeg.projectId.toHexString()) ??
+        "(unknown project)",
+      materialId: sourceLeg.materialId.toHexString(),
+      materialName: material.name,
+      materialUnit: material.unit,
+      materialUnitOther: material.unitOther,
+      qty: sourceLeg.qty,
+      status: reversals.length > 0 ? "reversed" : "active",
+      reversedAt,
+      createdBy: sourceLeg.createdBy.toHexString(),
+      createdByName:
+        userNameById.get(sourceLeg.createdBy.toHexString()) ?? null,
+    })
+  }
+
+  result.sort((a, b) => {
+    const d = b.occurredAt.getTime() - a.occurredAt.getTime()
+    if (d !== 0) return d
+    return b.transferGroupId.localeCompare(a.transferGroupId)
+  })
+  return result
 }

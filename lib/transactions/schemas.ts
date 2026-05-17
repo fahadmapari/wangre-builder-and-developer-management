@@ -133,6 +133,7 @@ export type Transaction = {
   voidedAt?: Date
   voidedBy?: ObjectId
   reversalOf?: ObjectId       // Phase 5 — FK to original when this row is a reversal
+  transferGroupId?: ObjectId  // Phase 6 — shared by both legs of a transfer (and both legs of its reversal)
   createdBy: ObjectId
   createdAt: Date
 }

@@ -56,7 +56,13 @@ async function fetchUnitsForRows(
   )
 }
 
-export async function LedgerTable({ rows }: { rows: Transaction[] }) {
+export async function LedgerTable({
+  rows,
+  otherProjectByRowId,
+}: {
+  rows: Transaction[]
+  otherProjectByRowId: Map<string, string>
+}) {
   if (rows.length === 0) {
     return (
       <Card className="grid place-items-center p-12 text-sm text-muted-foreground">
@@ -113,7 +119,14 @@ export async function LedgerTable({ rows }: { rows: Transaction[] }) {
                   <Badge variant="secondary">{categoryLabel(r.category)}</Badge>
                 </td>
                 <td className="px-4 py-3 text-right font-mono">{fmtAmount(r)}</td>
-                <td className="px-4 py-3">{r.description}</td>
+                <td className="px-4 py-3">
+                  {r.description}
+                  {r.transferGroupId ? (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      ↔ {otherProjectByRowId.get(r._id.toHexString()) ?? "Other project"}
+                    </Badge>
+                  ) : null}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {r.buyerName ?? ""}
                 </td>

@@ -41,6 +41,12 @@ export default async function AuthedLayout({
               >
                 Financials
               </Link>
+              <Link
+                href="/transfers"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Transfers
+              </Link>
             </>
           ) : null}
         </div>

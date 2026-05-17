@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/session"
 import {
   countSoldUnits,
   getProject,
+  listProjects,
 } from "@/lib/projects/repository"
 import {
   sumProjectRevenue,
@@ -15,7 +16,9 @@ import type {
   LedgerFilters,
   LedgerKindFilter,
   LedgerCategoryFilter,
+  Transaction,
 } from "@/lib/transactions/schemas"
+import { getDb } from "@/lib/db/client"
 import { Badge } from "@/components/ui/badge"
 import { ProjectTabs } from "./project-tabs"
 import { InventoryFilters } from "./inventory/inventory-filters"
@@ -110,7 +113,7 @@ export default async function ProjectDetailPage({
     includeVoided: sp.voided === "all",
   }
 
-  const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals] =
+  const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals, allProjects] =
     await Promise.all([
       getProject(id),
       countSoldUnits(projectObjectId),
@@ -120,11 +123,60 @@ export default async function ProjectDetailPage({
       isAdmin ? listLedger(projectObjectId, ledgerFilters) : Promise.resolve([]),
       isAdmin
         ? computeTotals(projectObjectId, ledgerFilters)
-        : Promise.resolve({ revenue: 0, expenses: 0, net: 0 }),
+        : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
+      listProjects(),
     ])
   if (!project) notFound()
 
+  // Compute peer-project lookup for transfer badge in ledger
+  const transferGroupIds = ledgerRows
+    .filter((r) => r.transferGroupId)
+    .map((r) => r.transferGroupId!)
+
+  const otherProjectByRowId = new Map<string, string>()
+  if (transferGroupIds.length > 0) {
+    const db = getDb()
+    const peerRows = await db
+      .collection<Transaction>("transactions")
+      .find({
+        transferGroupId: { $in: transferGroupIds },
+        projectId: { $ne: projectObjectId },
+      })
+      .project<{ _id: ObjectId; transferGroupId?: ObjectId; projectId: ObjectId }>({
+        transferGroupId: 1,
+        projectId: 1,
+      })
+      .toArray()
+    const peerProjectByGroup = new Map<string, ObjectId>()
+    for (const peer of peerRows) {
+      if (peer.transferGroupId) {
+        peerProjectByGroup.set(peer.transferGroupId.toHexString(), peer.projectId)
+      }
+    }
+    const peerProjectIds = [...new Set(peerProjectByGroup.values())]
+    const peerProjects = await db
+      .collection<{ _id: ObjectId; name: string }>("projects")
+      .find({ _id: { $in: peerProjectIds } })
+      .project<{ _id: ObjectId; name: string }>({ name: 1 })
+      .toArray()
+    const peerProjectNameById = new Map(
+      peerProjects.map((p) => [p._id.toHexString(), p.name])
+    )
+    for (const row of ledgerRows) {
+      if (!row.transferGroupId) continue
+      const peerId = peerProjectByGroup.get(row.transferGroupId.toHexString())
+      if (!peerId) continue
+      const peerName =
+        peerProjectNameById.get(peerId.toHexString()) ?? "(unknown project)"
+      otherProjectByRowId.set(row._id.toHexString(), peerName)
+    }
+  }
+
   const totalUnitsAndParkings = project.totalUnits + project.totalParkings
+  const projectsForPicker = allProjects.map((p) => ({
+    id: p._id.toHexString(),
+    name: p.name,
+  }))
   const catalogForPicker = catalog.map((m) => ({
     materialId: String(m._id),
     name: m.name,
@@ -179,6 +231,7 @@ export default async function ProjectDetailPage({
             role={user.role}
             rows={materialRows}
             catalog={catalogForPicker}
+            projects={projectsForPicker}
           />
         }
         financials={
@@ -189,6 +242,8 @@ export default async function ProjectDetailPage({
               totals={totals}
               defaultFrom={isoDate(defaultFromDate)}
               defaultTo={isoDate(defaultToDate)}
+              projects={projectsForPicker}
+              otherProjectByRowId={otherProjectByRowId}
             />
           ) : undefined
         }
