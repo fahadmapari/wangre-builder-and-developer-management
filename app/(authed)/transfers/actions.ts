@@ -95,6 +95,7 @@ export async function createMoneyTransferAction(
     revalidatePath(`/projects/${sourceProjectId}`)
     revalidatePath(`/projects/${destProjectId}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return {
       ok: true,
       data: {
@@ -137,6 +138,7 @@ export async function reverseMoneyTransferAction(
     revalidatePath("/financials")
     revalidatePath(`/projects/${sourceProjectId.toHexString()}`)
     revalidatePath(`/projects/${destProjectId.toHexString()}`)
+    revalidatePath("/audit")
     return {
       ok: true,
       data: {
@@ -231,6 +233,7 @@ export async function createMaterialTransferAction(
     revalidatePath("/transfers")
     revalidatePath(`/projects/${sourceProjectId}`)
     revalidatePath(`/projects/${destProjectId}`)
+    revalidatePath("/audit")
     return {
       ok: true,
       data: {
@@ -280,6 +283,7 @@ export async function reverseMaterialTransferAction(
     revalidatePath("/transfers")
     revalidatePath(`/projects/${sourceProjectId.toHexString()}`)
     revalidatePath(`/projects/${destProjectId.toHexString()}`)
+    revalidatePath("/audit")
     return {
       ok: true,
       data: {

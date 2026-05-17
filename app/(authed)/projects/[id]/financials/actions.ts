@@ -73,6 +73,7 @@ export async function createAdhocIncome(
       .insertOne(doc)
     revalidatePath(`/projects/${projectId}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return { ok: true, data: { transactionId: res.insertedId.toHexString() } }
   } catch (err) {
     console.error("createAdhocIncome failed", err)
@@ -119,6 +120,7 @@ export async function createAdhocExpense(
       .insertOne(doc)
     revalidatePath(`/projects/${projectId}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return { ok: true, data: { transactionId: res.insertedId.toHexString() } }
   } catch (err) {
     console.error("createAdhocExpense failed", err)
@@ -156,6 +158,7 @@ export async function voidTransaction(
     await voidTransactionRepo(new ObjectId(transactionId), user.id)
     revalidatePath(`/projects/${existing.projectId.toHexString()}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return { ok: true, data: { voided: true } }
   } catch (err) {
     if (err instanceof TransactionNotFoundError) {

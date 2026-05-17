@@ -25,6 +25,7 @@ export async function createProject(
   try {
     const { projectId } = await createProjectWithUnits(parsed.data, user.id)
     revalidatePath("/projects")
+    revalidatePath("/audit")
     return { ok: true, data: { projectId: projectId.toHexString() } }
   } catch (err) {
     console.error("createProject failed", err)
