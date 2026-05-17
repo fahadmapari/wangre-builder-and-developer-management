@@ -145,7 +145,12 @@ export function HistorySheet({ entityType, entityId, trigger }: HistoryProps) {
           </SheetDescription>
         </SheetHeader>
         <div className="mt-4">
-          <HistoryBody entityType={entityType} entityId={entityId} open={open} />
+          <HistoryBody
+            key={open ? "open" : "closed"}
+            entityType={entityType}
+            entityId={entityId}
+            open={open}
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -165,7 +170,12 @@ export function HistoryDialog({ entityType, entityId, trigger }: HistoryProps) {
           </DialogDescription>
         </DialogHeader>
         <div className="mt-2">
-          <HistoryBody entityType={entityType} entityId={entityId} open={open} />
+          <HistoryBody
+            key={open ? "open" : "closed"}
+            entityType={entityType}
+            entityId={entityId}
+            open={open}
+          />
         </div>
       </DialogContent>
     </Dialog>
