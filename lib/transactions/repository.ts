@@ -2,6 +2,8 @@ import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
 import type { Unit, Project } from "@/lib/projects/schemas"
 import type { MoneyTransferRow } from "@/lib/transfers/schemas"
+import type { MaterialMovement } from "@/lib/materials/schemas"
+import { InsufficientStockForReversalError } from "@/lib/materials/repository"
 import type { Transaction, TransactionKind, LedgerFilters } from "./schemas"
 
 /**
@@ -517,13 +519,14 @@ export async function voidTransaction(
  */
 export async function reverseTransaction(
   transactionId: ObjectId,
-  override: { occurredAt?: Date; notes?: string },
+  override: { occurredAt?: Date; notes?: string; andUnstock?: boolean },
   userId: string
-): Promise<{ reversalId: ObjectId }> {
+): Promise<{ reversalId: ObjectId; movementReversalId?: ObjectId }> {
   const createdBy = new ObjectId(userId)
   const session = client.startSession()
   try {
     let reversalId!: ObjectId
+    let movementReversalId: ObjectId | undefined
     await session.withTransaction(async () => {
       const db = getDb()
       const coll = db.collection<Transaction>("transactions")
@@ -568,8 +571,102 @@ export async function reverseTransaction(
       }
       const res = await insertColl.insertOne(reversalDoc, { session })
       reversalId = res.insertedId
+
+      // andUnstock cascade — only for category="purchase".
+      // Atomic with the financial reversal above (same session).
+      if (override.andUnstock && original.category === "purchase") {
+        const movs = db.collection<MaterialMovement>("materialMovements")
+        const movsInsert =
+          db.collection<Omit<MaterialMovement, "_id">>("materialMovements")
+        const pms = db.collection<{
+          projectId: ObjectId
+          materialId: ObjectId
+          stockOnHand: number
+          updatedAt: Date
+        }>("projectMaterials")
+
+        // 1. Find the linked purchase movement
+        const linked = await movs.findOne(
+          { transactionId: original._id, category: "purchase" },
+          { session }
+        )
+        if (!linked) {
+          throw new LinkedMovementNotFoundError()
+        }
+
+        // 2. Double-cascade guard
+        if (linked.voided === true) {
+          throw new AlreadyUnstockedError()
+        }
+        const existingMovReversal = await movs.findOne(
+          { reversalOf: linked._id },
+          { session }
+        )
+        if (existingMovReversal) {
+          throw new AlreadyUnstockedError()
+        }
+
+        // 3. Conditional stock decrement — race-safe via $gte predicate.
+        // Mirrors Phase 4 logConsumption and Phase 6 transfer reversal.
+        const decRes = await pms.findOneAndUpdate(
+          {
+            projectId: original.projectId,
+            materialId: linked.materialId,
+            stockOnHand: { $gte: linked.qty },
+          },
+          {
+            $inc: { stockOnHand: -linked.qty },
+            $set: { updatedAt: now },
+          },
+          { session, returnDocument: "after" }
+        )
+        if (!decRes) {
+          // Read the actual available value to surface in the error
+          const pm = await pms.findOne(
+            { projectId: original.projectId, materialId: linked.materialId },
+            { session }
+          )
+          const available = pm?.stockOnHand ?? 0
+          const proj = await db
+            .collection<{ name: string }>("projects")
+            .findOne(
+              { _id: original.projectId },
+              { session, projection: { name: 1 } }
+            )
+          throw new InsufficientStockForReversalError(
+            available,
+            original.projectId,
+            proj?.name ?? "(unknown project)"
+          )
+        }
+
+        // 4. Insert reversing movement row. kind="out" with the original
+        //    category ("purchase") mirrors Phase 6's "reversal reuses original
+        //    category with opposite kind" convention. No denormalized material
+        //    name: MaterialMovement has no description/purpose field for
+        //    purchases (recordPurchase only sets `notes` with the user's
+        //    notes, not the material name — the catalog name is joined at
+        //    read time).
+        const movDoc: Omit<MaterialMovement, "_id"> = {
+          projectId: original.projectId,
+          materialId: linked.materialId,
+          kind: "out",
+          category: "purchase",
+          qty: linked.qty,
+          unitPriceAtMovement: linked.unitPriceAtMovement,
+          amount: linked.amount,
+          notes: override.notes || undefined,
+          transactionId: reversalId,
+          reversalOf: linked._id,
+          occurredAt,
+          createdBy,
+          createdAt: now,
+        }
+        const movRes = await movsInsert.insertOne(movDoc, { session })
+        movementReversalId = movRes.insertedId
+      }
     })
-    return { reversalId }
+    return { reversalId, movementReversalId }
   } finally {
     await session.endSession()
   }
@@ -950,5 +1047,23 @@ export class CannotReverseTransferError extends Error {
     super(`Cannot reverse transfer: ${reason}`)
     this.name = "CannotReverseTransferError"
     this.reason = reason
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 7 — andUnstock cascade error classes
+// ──────────────────────────────────────────────────────────────────────────
+
+export class LinkedMovementNotFoundError extends Error {
+  constructor() {
+    super("No materialMovement linked to this purchase")
+    this.name = "LinkedMovementNotFoundError"
+  }
+}
+
+export class AlreadyUnstockedError extends Error {
+  constructor() {
+    super("Stock side has already been undone for this purchase.")
+    this.name = "AlreadyUnstockedError"
   }
 }
