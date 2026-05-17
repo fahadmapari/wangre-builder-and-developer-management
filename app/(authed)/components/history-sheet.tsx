@@ -47,7 +47,10 @@ function HistoryBody({
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setState({ status: "loading" })
+    Promise.resolve().then(() => {
+      if (cancelled) return
+      setState({ status: "loading" })
+    })
     getEntityHistoryAction(entityType, entityId)
       .then((res) => {
         if (cancelled) return
