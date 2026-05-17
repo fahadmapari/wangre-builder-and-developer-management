@@ -87,6 +87,7 @@ export function RowActionsMenu(ctx: RowActionsContext) {
           description={ctx.description}
           amount={ctx.amount}
           kind={ctx.kind}
+          category={ctx.category}
         />
       ) : null}
     </>

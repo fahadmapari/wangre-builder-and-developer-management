@@ -21,6 +21,19 @@ function isoDateToday(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+export type ReverseConfirmDialogProps = {
+  open: boolean
+  onOpenChange: (next: boolean) => void
+  transactionId: string
+  description: string
+  amount: number
+  kind: "income" | "expense"
+  category: "sale" | "purchase" | "adhoc" | "transfer_in" | "transfer_out"
+  // Only meaningful when category === "purchase". Used in the checkbox helper
+  // text so the admin sees exactly what will be decremented.
+  linkedMaterial?: { name: string; unit: string; qty: number; projectName: string }
+}
+
 export function ReverseConfirmDialog({
   open,
   onOpenChange,
@@ -28,19 +41,17 @@ export function ReverseConfirmDialog({
   description,
   amount,
   kind,
-}: {
-  open: boolean
-  onOpenChange: (next: boolean) => void
-  transactionId: string
-  description: string
-  amount: number
-  kind: "income" | "expense"
-}) {
+  category,
+  linkedMaterial,
+}: ReverseConfirmDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [occurredAt, setOccurredAt] = useState<string>(isoDateToday())
   const [notes, setNotes] = useState<string>("")
+  const [andUnstock, setAndUnstock] = useState<boolean>(false)
+
+  const showStockCheckbox = category === "purchase" && !!linkedMaterial
 
   function confirm() {
     setErrorMsg(null)
@@ -49,6 +60,7 @@ export function ReverseConfirmDialog({
         transactionId,
         occurredAt,
         notes,
+        andUnstock: showStockCheckbox ? andUnstock : false,
       })
       if (!result.ok) {
         setErrorMsg(result.error)
@@ -96,6 +108,30 @@ export function ReverseConfirmDialog({
               placeholder="Why is this being reversed?"
             />
           </div>
+          {showStockCheckbox && linkedMaterial ? (
+            <div className="flex items-start gap-2 rounded border border-border bg-muted/50 p-3">
+              <input
+                id="andUnstock"
+                type="checkbox"
+                className="mt-1"
+                checked={andUnstock}
+                onChange={(e) => setAndUnstock(e.target.checked)}
+                disabled={isPending}
+              />
+              <div className="flex flex-col gap-1 text-sm">
+                <Label htmlFor="andUnstock" className="font-medium">
+                  Also undo the stock side (decrements {linkedMaterial.projectName}
+                  &rsquo;s {linkedMaterial.name} by {linkedMaterial.qty}{" "}
+                  {linkedMaterial.unit})
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Use when the materials were returned or never received. Leave
+                  unchecked if the supplier issued a credit while you kept the
+                  goods.
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
         {errorMsg ? (
           <p className="text-sm text-destructive" role="alert">
