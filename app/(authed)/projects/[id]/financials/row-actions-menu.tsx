@@ -19,6 +19,11 @@ export type RowActionsContext = {
   category: "sale" | "purchase" | "adhoc" | "transfer_in" | "transfer_out"
   voided: boolean
   isReversal: boolean
+  // Phase 7 — only present for purchase rows whose linked materialMovement +
+  // material catalog row were resolved by the server prefetch. Forwarded as-is
+  // to <ReverseConfirmDialog> so the "Also undo stock" checkbox can render
+  // exact "decrements {project}'s {material} by {qty} {unit}" helper text.
+  linkedMaterial?: { name: string; unit: string; qty: number; projectName: string }
 }
 
 function actionsForRow(ctx: RowActionsContext): {
@@ -88,6 +93,7 @@ export function RowActionsMenu(ctx: RowActionsContext) {
           amount={ctx.amount}
           kind={ctx.kind}
           category={ctx.category}
+          linkedMaterial={ctx.linkedMaterial}
         />
       ) : null}
     </>

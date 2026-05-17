@@ -59,9 +59,14 @@ async function fetchUnitsForRows(
 export async function LedgerTable({
   rows,
   otherProjectByRowId,
+  linkedMaterials,
 }: {
   rows: Transaction[]
   otherProjectByRowId: Map<string, string>
+  linkedMaterials?: Map<
+    string,
+    { name: string; unit: string; qty: number; projectName: string }
+  >
 }) {
   if (rows.length === 0) {
     return (
@@ -140,6 +145,7 @@ export async function LedgerTable({
                     category={r.category}
                     voided={voided}
                     isReversal={isReversal}
+                    linkedMaterial={linkedMaterials?.get(r._id.toHexString())}
                   />
                 </td>
               </tr>
