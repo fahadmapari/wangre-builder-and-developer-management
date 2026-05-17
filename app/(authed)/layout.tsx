@@ -47,6 +47,12 @@ export default async function AuthedLayout({
               >
                 Transfers
               </Link>
+              <Link
+                href="/audit"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Audit
+              </Link>
             </>
           ) : null}
         </div>
