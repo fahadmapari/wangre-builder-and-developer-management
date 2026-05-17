@@ -464,6 +464,19 @@ export async function listEntityHistory(
     }
   }
 
+  // Dedupe by synthetic id. For reversed transfers, the reversal row matches
+  // both the reversalOf-query AND the transferGroupId-query, so it can be
+  // collected twice. Last write wins (events are identical when dupes).
+  const seen = new Set<string>()
+  const deduped: RawEvent[] = []
+  for (const e of raw) {
+    if (seen.has(e.id)) continue
+    seen.add(e.id)
+    deduped.push(e)
+  }
+  raw.length = 0
+  raw.push(...deduped)
+
   raw.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
   return denormalize(raw)
 }
