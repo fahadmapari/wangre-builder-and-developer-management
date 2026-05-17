@@ -330,3 +330,227 @@ async function denormalize(raw: RawEvent[]): Promise<AuditEvent[]> {
     }
   })
 }
+
+export async function listEntityHistory(
+  entityType: AuditEntityType,
+  entityId: ObjectId
+): Promise<AuditEvent[]> {
+  const db = getDb()
+  const raw: RawEvent[] = []
+
+  if (entityType === "transaction") {
+    const coll = db.collection<{
+      _id: ObjectId
+      projectId: ObjectId
+      category: string
+      kind: string
+      amount: number
+      description: string
+      reversalOf?: ObjectId
+      transferGroupId?: ObjectId
+      voided?: boolean
+      voidedAt?: Date
+      voidedBy?: ObjectId
+      createdBy: ObjectId
+      createdAt: Date
+    }>("transactions")
+    const self = await coll.findOne({ _id: entityId })
+    if (!self) return []
+    // Self events (created/reversed + voided if applicable)
+    raw.push(...txnRowToEvents(self))
+    // Reversal pointing at self
+    const revs = await coll
+      .find({ reversalOf: entityId })
+      .toArray()
+    for (const r of revs) raw.push(...txnRowToEvents(r))
+    // Transfer group peers (both legs + their reversals)
+    if (self.transferGroupId) {
+      const groupPeers = await coll
+        .find({
+          transferGroupId: self.transferGroupId,
+          _id: { $ne: self._id },
+        })
+        .toArray()
+      for (const p of groupPeers) raw.push(...txnRowToEvents(p))
+    }
+  } else if (entityType === "movement") {
+    const coll = db.collection<{
+      _id: ObjectId
+      projectId: ObjectId
+      category: string
+      kind: string
+      qty: number
+      reversalOf?: ObjectId
+      transferGroupId?: ObjectId
+      voided?: boolean
+      voidedAt?: Date
+      voidedBy?: ObjectId
+      createdBy: ObjectId
+      createdAt: Date
+    }>("materialMovements")
+    const self = await coll.findOne({ _id: entityId })
+    if (!self) return []
+    raw.push(...movRowToEvents(self))
+    const revs = await coll.find({ reversalOf: entityId }).toArray()
+    for (const r of revs) raw.push(...movRowToEvents(r))
+    if (self.transferGroupId) {
+      const groupPeers = await coll
+        .find({
+          transferGroupId: self.transferGroupId,
+          _id: { $ne: self._id },
+        })
+        .toArray()
+      for (const p of groupPeers) raw.push(...movRowToEvents(p))
+    }
+  } else if (entityType === "project") {
+    const r = await db
+      .collection<{ _id: ObjectId; name: string; createdBy: ObjectId; createdAt: Date }>(
+        "projects"
+      )
+      .findOne({ _id: entityId })
+    if (r) {
+      raw.push({
+        id: `project:${r._id.toHexString()}:created`,
+        occurredAt: r.createdAt,
+        actorId: r.createdBy,
+        action: "created",
+        entityType: "project",
+        entityId: r._id,
+        projectId: r._id,
+        summary: `Created project: ${r.name}`,
+        refUrl: `/projects/${r._id.toHexString()}`,
+      })
+    }
+  } else if (entityType === "unit") {
+    const r = await db
+      .collection<{
+        _id: ObjectId
+        projectId: ObjectId
+        type: string
+        number: string
+        createdBy: ObjectId
+        createdAt: Date
+      }>("units")
+      .findOne({ _id: entityId })
+    if (r) {
+      raw.push({
+        id: `unit:${r._id.toHexString()}:created`,
+        occurredAt: r.createdAt,
+        actorId: r.createdBy,
+        action: "created",
+        entityType: "unit",
+        entityId: r._id,
+        projectId: r.projectId,
+        summary: `Created ${r.type}: ${r.number}`,
+        refUrl: `/projects/${r.projectId.toHexString()}`,
+      })
+    }
+  } else if (entityType === "material") {
+    const r = await db
+      .collection<{ _id: ObjectId; name: string; createdBy: ObjectId; createdAt: Date }>(
+        "materials"
+      )
+      .findOne({ _id: entityId })
+    if (r) {
+      raw.push({
+        id: `material:${r._id.toHexString()}:created`,
+        occurredAt: r.createdAt,
+        actorId: r.createdBy,
+        action: "created",
+        entityType: "material",
+        entityId: r._id,
+        summary: `Added material to catalog: ${r.name}`,
+      })
+    }
+  }
+
+  raw.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+  return denormalize(raw)
+}
+
+function txnRowToEvents(r: {
+  _id: ObjectId
+  projectId: ObjectId
+  category: string
+  kind: string
+  amount: number
+  description: string
+  reversalOf?: ObjectId
+  voided?: boolean
+  voidedAt?: Date
+  voidedBy?: ObjectId
+  createdBy: ObjectId
+  createdAt: Date
+}): RawEvent[] {
+  const action: AuditAction = r.reversalOf ? "reversed" : "created"
+  const out: RawEvent[] = [
+    {
+      id: `transaction:${r._id.toHexString()}:${action}`,
+      occurredAt: r.createdAt,
+      actorId: r.createdBy,
+      action,
+      entityType: "transaction",
+      entityId: r._id,
+      projectId: r.projectId,
+      summary: summarizeTransaction(r, action),
+      refUrl: `/projects/${r.projectId.toHexString()}/financials`,
+    },
+  ]
+  if (r.voidedAt && r.voidedBy) {
+    out.push({
+      id: `transaction:${r._id.toHexString()}:voided`,
+      occurredAt: r.voidedAt,
+      actorId: r.voidedBy,
+      action: "voided",
+      entityType: "transaction",
+      entityId: r._id,
+      projectId: r.projectId,
+      summary: `Voided ${r.kind} (₹${r.amount.toLocaleString("en-IN")}): ${r.description}`,
+      refUrl: `/projects/${r.projectId.toHexString()}/financials`,
+    })
+  }
+  return out
+}
+
+function movRowToEvents(r: {
+  _id: ObjectId
+  projectId: ObjectId
+  category: string
+  kind: string
+  qty: number
+  reversalOf?: ObjectId
+  voided?: boolean
+  voidedAt?: Date
+  voidedBy?: ObjectId
+  createdBy: ObjectId
+  createdAt: Date
+}): RawEvent[] {
+  const action: AuditAction = r.reversalOf ? "reversed" : "created"
+  const out: RawEvent[] = [
+    {
+      id: `movement:${r._id.toHexString()}:${action}`,
+      occurredAt: r.createdAt,
+      actorId: r.createdBy,
+      action,
+      entityType: "movement",
+      entityId: r._id,
+      projectId: r.projectId,
+      summary: `${action === "created" ? "Created" : "Reversed"} ${r.category} (${r.qty}, ${r.kind})`,
+      refUrl: `/projects/${r.projectId.toHexString()}/materials`,
+    },
+  ]
+  if (r.voidedAt && r.voidedBy) {
+    out.push({
+      id: `movement:${r._id.toHexString()}:voided`,
+      occurredAt: r.voidedAt,
+      actorId: r.voidedBy,
+      action: "voided",
+      entityType: "movement",
+      entityId: r._id,
+      projectId: r.projectId,
+      summary: `Voided ${r.category} (${r.qty}, ${r.kind})`,
+      refUrl: `/projects/${r.projectId.toHexString()}/materials`,
+    })
+  }
+  return out
+}
