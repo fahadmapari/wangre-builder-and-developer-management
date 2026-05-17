@@ -110,6 +110,7 @@ export const ReverseTransactionInputSchema = z.object({
   transactionId: z.string().min(1, "Missing transaction"),
   occurredAt: z.coerce.date().optional(),
   notes: z.string().max(2000).optional().default(""),
+  andUnstock: z.boolean().optional().default(false),
 })
 export type ReverseTransactionInput = z.infer<typeof ReverseTransactionInputSchema>
 

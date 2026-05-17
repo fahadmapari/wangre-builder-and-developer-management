@@ -16,7 +16,10 @@ import {
   reverseTransaction as reverseTransactionRepo,
   TransactionNotFoundError,
   CannotReverseError,
+  LinkedMovementNotFoundError,
+  AlreadyUnstockedError,
 } from "@/lib/transactions/repository"
+import { InsufficientStockForReversalError } from "@/lib/materials/repository"
 import { getDb } from "@/lib/db/client"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,6 +73,7 @@ export async function createAdhocIncome(
       .insertOne(doc)
     revalidatePath(`/projects/${projectId}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return { ok: true, data: { transactionId: res.insertedId.toHexString() } }
   } catch (err) {
     console.error("createAdhocIncome failed", err)
@@ -116,6 +120,7 @@ export async function createAdhocExpense(
       .insertOne(doc)
     revalidatePath(`/projects/${projectId}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return { ok: true, data: { transactionId: res.insertedId.toHexString() } }
   } catch (err) {
     console.error("createAdhocExpense failed", err)
@@ -153,6 +158,7 @@ export async function voidTransaction(
     await voidTransactionRepo(new ObjectId(transactionId), user.id)
     revalidatePath(`/projects/${existing.projectId.toHexString()}`)
     revalidatePath("/financials")
+    revalidatePath("/audit")
     return { ok: true, data: { voided: true } }
   } catch (err) {
     if (err instanceof TransactionNotFoundError) {
@@ -176,7 +182,7 @@ const CANNOT_REVERSE_MESSAGES: Record<string, string> = {
 
 export async function reverseTransaction(
   raw: unknown
-): Promise<ActionResult<{ reversalId: string }>> {
+): Promise<ActionResult<{ reversalId: string; movementReversalId?: string }>> {
   const user = await requireAdmin()
   const parsed = ReverseTransactionInputSchema.safeParse(raw)
   if (!parsed.success) {
@@ -184,7 +190,7 @@ export async function reverseTransaction(
     return { ok: false, error: fe.error, field: fe.field }
   }
 
-  const { transactionId, occurredAt, notes } = parsed.data
+  const { transactionId, occurredAt, notes, andUnstock } = parsed.data
   if (!ObjectId.isValid(transactionId)) {
     return { ok: false, error: "Invalid transaction id." }
   }
@@ -200,14 +206,23 @@ export async function reverseTransaction(
   if (!existing) return { ok: false, error: "Transaction not found." }
 
   try {
-    const { reversalId } = await reverseTransactionRepo(
+    const { reversalId, movementReversalId } = await reverseTransactionRepo(
       new ObjectId(transactionId),
-      { occurredAt, notes },
+      { occurredAt, notes, andUnstock },
       user.id
     )
-    revalidatePath(`/projects/${existing.projectId.toHexString()}`)
+    const projectId = existing.projectId.toHexString()
+    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/projects/${projectId}/materials`)
     revalidatePath("/financials")
-    return { ok: true, data: { reversalId: reversalId.toHexString() } }
+    revalidatePath("/audit")
+    return {
+      ok: true,
+      data: {
+        reversalId: reversalId.toHexString(),
+        movementReversalId: movementReversalId?.toHexString(),
+      },
+    }
   } catch (err) {
     if (err instanceof CannotReverseError) {
       return {
@@ -215,6 +230,25 @@ export async function reverseTransaction(
         error:
           CANNOT_REVERSE_MESSAGES[err.reason] ??
           "Cannot reverse this transaction.",
+      }
+    }
+    if (err instanceof LinkedMovementNotFoundError) {
+      return {
+        ok: false,
+        error: "Cannot undo stock: no material movement linked to this purchase.",
+      }
+    }
+    if (err instanceof AlreadyUnstockedError) {
+      return {
+        ok: false,
+        error:
+          "Cannot undo stock: it has already been undone for this purchase.",
+      }
+    }
+    if (err instanceof InsufficientStockForReversalError) {
+      return {
+        ok: false,
+        error: `Cannot undo stock: ${err.projectName} only has ${err.available} of this material remaining, but the purchase was more. Reverse without 'undo stock' if you want to reverse only the financial side.`,
       }
     }
     console.error("reverseTransaction failed", err)

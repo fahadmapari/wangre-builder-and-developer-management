@@ -47,6 +47,7 @@ export type TransferStatus = "active" | "reversed"
 
 export type MoneyTransferRow = {
   transferGroupId: string         // hex
+  sourceTxId: string              // hex — source-leg transaction _id (used for History lookup)
   occurredAt: Date                 // taken from source leg
   sourceProjectId: string          // hex
   sourceProjectName: string
@@ -62,6 +63,7 @@ export type MoneyTransferRow = {
 
 export type MaterialTransferRow = {
   transferGroupId: string
+  sourceMovId: string             // hex — source-leg materialMovement _id (used for History lookup)
   occurredAt: Date
   sourceProjectId: string
   sourceProjectName: string

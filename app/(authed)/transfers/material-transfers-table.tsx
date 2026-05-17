@@ -1,7 +1,9 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import type { MaterialTransferRow } from "@/lib/transfers/schemas"
 import type { MaterialUnit } from "@/lib/materials/schemas"
+import { HistorySheet } from "@/app/(authed)/components/history-sheet"
 import { ReverseTransferButton } from "./reverse-transfer-dialog"
 
 function fmtDate(d: Date): string {
@@ -74,13 +76,24 @@ export function MaterialTransfersTable({
                   {r.createdByName ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {r.status === "active" ? (
-                    <ReverseTransferButton
-                      transferGroupId={r.transferGroupId}
-                      kind="material"
-                      summary={`${r.sourceProjectName} → ${r.destProjectName} · ${r.qty} ${unitLabel} ${r.materialName}`}
+                  <div className="flex items-center justify-end gap-2">
+                    <HistorySheet
+                      entityType="movement"
+                      entityId={r.sourceMovId}
+                      trigger={
+                        <Button variant="ghost" size="sm">
+                          History
+                        </Button>
+                      }
                     />
-                  ) : null}
+                    {r.status === "active" ? (
+                      <ReverseTransferButton
+                        transferGroupId={r.transferGroupId}
+                        kind="material"
+                        summary={`${r.sourceProjectName} → ${r.destProjectName} · ${r.qty} ${unitLabel} ${r.materialName}`}
+                      />
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             )

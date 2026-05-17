@@ -18,6 +18,7 @@ import type {
   LedgerCategoryFilter,
   Transaction,
 } from "@/lib/transactions/schemas"
+import type { Material, MaterialMovement } from "@/lib/materials/schemas"
 import { getDb } from "@/lib/db/client"
 import { Badge } from "@/components/ui/badge"
 import { ProjectTabs } from "./project-tabs"
@@ -78,6 +79,55 @@ function parseCategory(raw: string | undefined): LedgerCategoryFilter {
     default:
       return "all"
   }
+}
+
+// Build a Map<transactionId, { name, unit, qty, projectName }> for purchase
+// rows on the current page, so the Reverse dialog can pre-fill the helper
+// text. Non-purchase rows have no entry; the dialog hides the checkbox.
+async function loadLinkedMaterials(
+  rows: Array<{ _id: ObjectId; category: string }>,
+  projectName: string
+): Promise<Map<string, { name: string; unit: string; qty: number; projectName: string }>> {
+  const purchaseIds = rows
+    .filter((r) => r.category === "purchase")
+    .map((r) => r._id)
+  if (purchaseIds.length === 0) return new Map()
+  const db = getDb()
+  const movs = await db
+    .collection<MaterialMovement>("materialMovements")
+    .find(
+      { transactionId: { $in: purchaseIds }, category: "purchase" },
+      { projection: { transactionId: 1, materialId: 1, qty: 1 } }
+    )
+    .toArray()
+  const materialIds = [
+    ...new Set(movs.map((m) => m.materialId.toHexString())),
+  ].map((s) => new ObjectId(s))
+  if (materialIds.length === 0) return new Map()
+  const materials = await db
+    .collection<Material>("materials")
+    .find(
+      { _id: { $in: materialIds } },
+      { projection: { name: 1, unit: 1, unitOther: 1 } }
+    )
+    .toArray()
+  const matById = new Map(materials.map((m) => [m._id.toHexString(), m]))
+  const out = new Map<
+    string,
+    { name: string; unit: string; qty: number; projectName: string }
+  >()
+  for (const mov of movs) {
+    if (!mov.transactionId) continue
+    const mat = matById.get(mov.materialId.toHexString())
+    if (!mat) continue
+    out.set(mov.transactionId.toHexString(), {
+      name: mat.name,
+      unit: mat.unit === "other" ? mat.unitOther ?? "unit" : mat.unit,
+      qty: mov.qty,
+      projectName,
+    })
+  }
+  return out
 }
 
 type AllSearchParams = InventoryFilterParams & {
@@ -172,6 +222,17 @@ export default async function ProjectDetailPage({
     }
   }
 
+  // Phase 7 — prefetch linkedMaterial for purchase rows so the Reverse dialog
+  // can show "decrements {project}'s {material} by {qty} {unit}" without an
+  // extra round trip on click. Only computed for admins (non-admins get an
+  // empty ledger anyway).
+  const linkedMaterials = isAdmin
+    ? await loadLinkedMaterials(ledgerRows, project.name)
+    : new Map<
+        string,
+        { name: string; unit: string; qty: number; projectName: string }
+      >()
+
   const totalUnitsAndParkings = project.totalUnits + project.totalParkings
   const projectsForPicker = allProjects.map((p) => ({
     id: p._id.toHexString(),
@@ -244,6 +305,7 @@ export default async function ProjectDetailPage({
               defaultTo={isoDate(defaultToDate)}
               projects={projectsForPicker}
               otherProjectByRowId={otherProjectByRowId}
+              linkedMaterials={linkedMaterials}
             />
           ) : undefined
         }

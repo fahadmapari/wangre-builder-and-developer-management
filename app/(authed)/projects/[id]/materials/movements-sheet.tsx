@@ -10,6 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { HistoryDialog } from "@/app/(authed)/components/history-sheet"
 import type { MaterialMovement } from "@/lib/materials/schemas"
 import type { Role } from "@/types"
 
@@ -78,6 +79,7 @@ export function MovementsSheetButton({
 
   const loading = open && rows === null && error === null
   const showAmount = role === "admin"
+  const isAdmin = role === "admin"
 
   return (
     <>
@@ -121,6 +123,7 @@ export function MovementsSheetButton({
                     <th className="py-2 text-right">Qty</th>
                     {showAmount ? <th className="py-2 text-right">Amount</th> : null}
                     <th className="py-2">Purpose / notes</th>
+                    {isAdmin ? <th className="py-2 text-right">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -149,6 +152,19 @@ export function MovementsSheetButton({
                       <td className="py-2 text-muted-foreground">
                         {[r.purpose, r.notes].filter(Boolean).join(" — ")}
                       </td>
+                      {isAdmin ? (
+                        <td className="py-2 text-right">
+                          <HistoryDialog
+                            entityType="movement"
+                            entityId={r._id}
+                            trigger={
+                              <Button variant="ghost" size="sm">
+                                History
+                              </Button>
+                            }
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

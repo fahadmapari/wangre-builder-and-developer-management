@@ -59,6 +59,7 @@ export async function recordPurchase(
       user.id
     )
     revalidatePath(`/projects/${projectId}`)
+    revalidatePath("/audit")
     return {
       ok: true,
       data: {
@@ -107,6 +108,7 @@ export async function logConsumption(
       user.id
     )
     revalidatePath(`/projects/${projectId}`)
+    revalidatePath("/audit")
     return {
       ok: true,
       data: { movementId: movementId.toHexString(), remainingStock },
@@ -159,6 +161,7 @@ export async function logReturn(
       user.id
     )
     revalidatePath(`/projects/${projectId}`)
+    revalidatePath("/audit")
     return { ok: true, data: { movementId: movementId.toHexString() } }
   } catch (err) {
     console.error("logReturn failed", err)

@@ -50,6 +50,7 @@ export async function markUnitSold(
       user.id
     )
     revalidatePath(`/projects/${projectId}`)
+    revalidatePath("/audit")
     return { ok: true, data: { transactionId: transactionId.toHexString() } }
   } catch (err) {
     if (err instanceof UnitNotAvailableError) {
@@ -91,6 +92,7 @@ export async function unmarkUnitSold(
     // revalidatePath needs the project id, which the action's caller doesn't
     // pass. revalidate the whole projects tree — cheap and safe for v1.
     revalidatePath("/projects", "layout")
+    revalidatePath("/audit")
     return {
       ok: true,
       data: { warningMissingLedgerRow: !ledgerRowVoided },

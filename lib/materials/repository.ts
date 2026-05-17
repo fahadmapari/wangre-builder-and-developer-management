@@ -775,7 +775,7 @@ export async function listMaterialTransfers(
   range: { from: Date; to: Date }
 ): Promise<MaterialTransferRow[]> {
   const db = getDb()
-  const fromDate = range.from
+  const fromDate = new Date(range.from)
   const toDate = new Date(range.to)
   toDate.setHours(23, 59, 59, 999)
 
@@ -862,6 +862,7 @@ export async function listMaterialTransfers(
 
     result.push({
       transferGroupId: groupKey,
+      sourceMovId: sourceLeg._id.toHexString(),
       occurredAt: sourceLeg.occurredAt,
       sourceProjectId: sourceLeg.projectId.toHexString(),
       sourceProjectName:

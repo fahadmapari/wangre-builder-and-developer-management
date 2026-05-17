@@ -47,6 +47,7 @@ export async function createMaterial(
     // could be showing a stale list.
     revalidatePath("/catalog")
     revalidatePath("/projects", "layout")
+    revalidatePath("/audit")
     return { ok: true, data: { materialId: materialId.toHexString() } }
   } catch (err) {
     console.error("createMaterial failed", err)
