@@ -797,7 +797,7 @@ export async function listMoneyTransfers(
   range: { from: Date; to: Date }
 ): Promise<MoneyTransferRow[]> {
   const db = getDb()
-  const fromDate = range.from
+  const fromDate = new Date(range.from)
   const toDate = endOfDay(range.to)
 
   const candidates = await db
