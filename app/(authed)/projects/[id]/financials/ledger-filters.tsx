@@ -126,6 +126,7 @@ export function LedgerFilters({
             placeholder="description, buyer, notes..."
             value={searchValue}
             maxLength={200}
+            className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
