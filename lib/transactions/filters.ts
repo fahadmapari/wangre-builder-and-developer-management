@@ -30,8 +30,20 @@ function parseLocalDate(raw: string | undefined, fallback: Date): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
   if (!m) return fallback
   const [, y, mo, d] = m
-  const out = new Date(Number(y), Number(mo) - 1, Number(d), 0, 0, 0, 0)
-  return Number.isNaN(out.getTime()) ? fallback : out
+  const year = Number(y)
+  const monthIndex = Number(mo) - 1
+  const day = Number(d)
+  const out = new Date(year, monthIndex, day, 0, 0, 0, 0)
+  // Reject component overflow (e.g. "2026-13-01" parses as 2027-01-01 in JS).
+  // Without this, an invalid URL silently widens the date window.
+  if (
+    out.getFullYear() !== year ||
+    out.getMonth() !== monthIndex ||
+    out.getDate() !== day
+  ) {
+    return fallback
+  }
+  return out
 }
 
 export function defaultLedgerFrom(): Date {
@@ -41,6 +53,11 @@ export function defaultLedgerFrom(): Date {
   return d
 }
 
+/**
+ * Dec 31 of the current year at local midnight (00:00:00). The query layer
+ * (`buildLedgerMatch`) expands `to` to end-of-day via `endOfDay()`, so the
+ * filter covers the full day — the midnight value here is intentional.
+ */
 export function defaultLedgerTo(): Date {
   const d = new Date()
   d.setMonth(11, 31)
