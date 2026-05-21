@@ -189,6 +189,10 @@ function buildLedgerMatch(filters: LedgerFilters): Record<string, unknown> {
   if (filters.kind !== "all") match.kind = filters.kind
   if (filters.category !== "all") match.category = filters.category
   if (!filters.includeVoided) match.voided = { $ne: true }
+  // Phase 8 — narrow the ledger AND totals when a search is active.
+  // <2 chars is treated as no search so single-keystroke typing doesn't fire.
+  const q = filters.search?.trim()
+  if (q && q.length >= 2) match.$text = { $search: q }
   return match
 }
 
