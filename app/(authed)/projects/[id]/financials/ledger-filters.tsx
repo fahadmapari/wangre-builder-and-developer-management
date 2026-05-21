@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,6 +43,50 @@ export function LedgerFilters({
   const category = sp.get("category") ?? "all"
   const voided = sp.get("voided") ?? "active"
 
+  const initialSearch = sp.get("search") ?? ""
+  const [searchValue, setSearchValue] = useState(initialSearch)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Re-sync local state if the URL changes externally (e.g. browser back button).
+  useEffect(() => {
+    const next = sp.get("search") ?? ""
+    void Promise.resolve().then(() => setSearchValue(next))
+  }, [sp])
+
+  // Clean up the timer on unmount so a debounced fire after navigation is a no-op.
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    }
+  }, [])
+
+  function applySearch(next: string) {
+    const trimmed = next.trim()
+    const params = new URLSearchParams(sp.toString())
+    if (trimmed.length >= 2) params.set("search", trimmed)
+    else params.delete("search")
+    startTransition(() => {
+      router.replace(`?${params.toString()}`, { scroll: false })
+    })
+  }
+
+  function onSearchChange(next: string) {
+    setSearchValue(next)
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(() => applySearch(next), 350)
+  }
+
+  function flushSearch() {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    applySearch(searchValue)
+  }
+
+  function clearSearch() {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    setSearchValue("")
+    applySearch("")
+  }
+
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp.toString())
     next.set(key, value)
@@ -71,6 +115,35 @@ export function LedgerFilters({
             value={to}
             onChange={(e) => setParam("to", e.target.value)}
           />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="search">Search</Label>
+        <div className="relative flex w-full sm:w-72">
+          <Input
+            id="search"
+            type="search"
+            placeholder="description, buyer, notes..."
+            value={searchValue}
+            maxLength={200}
+            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                flushSearch()
+              }
+            }}
+          />
+          {searchValue.length > 0 ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={clearSearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              ✕
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-4">
