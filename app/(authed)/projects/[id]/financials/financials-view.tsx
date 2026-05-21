@@ -17,6 +17,7 @@ export function FinancialsView({
   projects,
   otherProjectByRowId,
   linkedMaterials,
+  search,
 }: {
   projectId: string
   rows: Transaction[]
@@ -29,6 +30,7 @@ export function FinancialsView({
     string,
     { name: string; unit: string; qty: number; projectName: string }
   >
+  search?: string
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -68,11 +70,26 @@ export function FinancialsView({
         </div>
       </div>
       <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
-      <LedgerTable
-        rows={rows}
-        otherProjectByRowId={otherProjectByRowId}
-        linkedMaterials={linkedMaterials}
-      />
+      {search ? (
+        <p className="text-sm text-muted-foreground">
+          Showing matches for{" "}
+          <span className="font-medium text-foreground">&quot;{search}&quot;</span>
+          {" — "}use the search input above to refine or clear.
+        </p>
+      ) : null}
+      {rows.length === 0 ? (
+        <p className="rounded border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          {search
+            ? "No transactions match your search."
+            : "No transactions in this window."}
+        </p>
+      ) : (
+        <LedgerTable
+          rows={rows}
+          otherProjectByRowId={otherProjectByRowId}
+          linkedMaterials={linkedMaterials}
+        />
+      )}
     </div>
   )
 }

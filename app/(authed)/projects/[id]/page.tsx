@@ -266,6 +266,7 @@ export default async function ProjectDetailPage({
               projects={projectsForPicker}
               otherProjectByRowId={otherProjectByRowId}
               linkedMaterials={linkedMaterials}
+              search={filters.search}
             />
           ) : undefined
         }
