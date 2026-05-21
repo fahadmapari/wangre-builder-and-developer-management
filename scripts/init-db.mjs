@@ -74,6 +74,16 @@ await db
   .collection("materialMovements")
   .createIndex({ reversalOf: 1 }, { sparse: true })
 
+// Phase 8 — ledger text search
+await db.collection("transactions").createIndex(
+  { description: "text", buyerName: "text", notes: "text" },
+  {
+    name: "transactions_text",
+    weights: { description: 10, buyerName: 5, notes: 1 },
+    default_language: "english",
+  },
+)
+
 console.log(
   "Indexes ensured: users.email (unique); " +
     "projects.createdAt, projects.name; " +
@@ -83,7 +93,8 @@ console.log(
     "projectMaterials.(projectId,materialId) unique, projectMaterials.(projectId); " +
     "materialMovements.(projectId,materialId,occurredAt), materialMovements.(projectId,kind,voided), materialMovements.(transactionId) sparse" +
     "; transactions.transferGroupId sparse; " +
-    "materialMovements.reversalOf sparse, materialMovements.transferGroupId sparse"
+    "materialMovements.reversalOf sparse, materialMovements.transferGroupId sparse; " +
+    "transactions_text (description weight=10, buyerName=5, notes=1)"
 )
 
 await client.close()
