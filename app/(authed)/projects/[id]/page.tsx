@@ -123,6 +123,16 @@ export default async function ProjectDetailPage({
   const defaultFromIso = isoDate(defaultLedgerFrom())
   const defaultToIso = isoDate(defaultLedgerTo())
 
+  const exportParams = new URLSearchParams()
+  exportParams.set("projectId", id)
+  exportParams.set("from", isoDate(filters.from))
+  exportParams.set("to", isoDate(filters.to))
+  if (filters.kind !== "all") exportParams.set("kind", filters.kind)
+  if (filters.category !== "all") exportParams.set("category", filters.category)
+  exportParams.set("voided", filters.includeVoided ? "all" : "active")
+  if (filters.search) exportParams.set("search", filters.search)
+  const ledgerExportHref = `/api/export/ledger?${exportParams.toString()}`
+
   const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals, allProjects] =
     await Promise.all([
       getProject(id),
@@ -267,6 +277,7 @@ export default async function ProjectDetailPage({
               otherProjectByRowId={otherProjectByRowId}
               linkedMaterials={linkedMaterials}
               search={filters.search}
+              ledgerExportHref={ledgerExportHref}
             />
           ) : undefined
         }

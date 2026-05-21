@@ -1,5 +1,6 @@
 import type { Transaction } from "@/lib/transactions/schemas"
 import type { FinancialTotals } from "@/lib/transactions/repository"
+import { Button } from "@/components/ui/button"
 import { LedgerFilters } from "./ledger-filters"
 import { LedgerTable } from "./ledger-table"
 import { AddIncomeButton } from "./add-income-dialog"
@@ -18,6 +19,7 @@ export function FinancialsView({
   otherProjectByRowId,
   linkedMaterials,
   search,
+  ledgerExportHref,
 }: {
   projectId: string
   rows: Transaction[]
@@ -31,6 +33,7 @@ export function FinancialsView({
     { name: string; unit: string; qty: number; projectName: string }
   >
   search?: string
+  ledgerExportHref: string
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -67,6 +70,11 @@ export function FinancialsView({
           <AddIncomeButton projectId={projectId} />
           <AddExpenseButton projectId={projectId} />
           <MoneyTransferButton projects={projects} lockedSource={projectId} />
+          <Button asChild variant="outline" size="sm">
+            <a href={ledgerExportHref} download>
+              Export CSV
+            </a>
+          </Button>
         </div>
       </div>
       <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
