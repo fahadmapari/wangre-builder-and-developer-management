@@ -12,13 +12,13 @@ import {
   computeTotals,
 } from "@/lib/transactions/repository"
 import { listProjectMaterials, listCatalog } from "@/lib/materials/repository"
-import type {
-  LedgerFilters,
-  LedgerKindFilter,
-  LedgerCategoryFilter,
-  Transaction,
-} from "@/lib/transactions/schemas"
+import type { Transaction } from "@/lib/transactions/schemas"
 import type { Material, MaterialMovement } from "@/lib/materials/schemas"
+import {
+  parseLedgerFilters,
+  defaultLedgerFrom,
+  defaultLedgerTo,
+} from "@/lib/transactions/filters"
 import { getDb } from "@/lib/db/client"
 import { Badge } from "@/components/ui/badge"
 import { ProjectTabs } from "./project-tabs"
@@ -39,46 +39,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 const INR = new Intl.NumberFormat("en-IN")
 
-function startOfYear(): Date {
-  const d = new Date()
-  d.setMonth(0, 1)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function endOfYear(): Date {
-  const d = new Date()
-  d.setMonth(11, 31)
-  d.setHours(23, 59, 59, 999)
-  return d
-}
-
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10)
-}
-
-function parseDate(raw: string | undefined, fallback: Date): Date {
-  if (!raw) return fallback
-  const d = new Date(raw + "T00:00:00")
-  if (Number.isNaN(d.getTime())) return fallback
-  return d
-}
-
-function parseKind(raw: string | undefined): LedgerKindFilter {
-  return raw === "income" || raw === "expense" ? raw : "all"
-}
-
-function parseCategory(raw: string | undefined): LedgerCategoryFilter {
-  switch (raw) {
-    case "sale":
-    case "purchase":
-    case "adhoc":
-    case "transfer_in":
-    case "transfer_out":
-      return raw
-    default:
-      return "all"
-  }
 }
 
 // Build a Map<transactionId, { name, unit, qty, projectName }> for purchase
@@ -136,6 +98,7 @@ type AllSearchParams = InventoryFilterParams & {
   kind?: string
   category?: string
   voided?: string
+  search?: string
 }
 
 export default async function ProjectDetailPage({
@@ -153,15 +116,9 @@ export default async function ProjectDetailPage({
   const projectObjectId = new ObjectId(id)
   const isAdmin = user.role === "admin"
 
-  const defaultFromDate = startOfYear()
-  const defaultToDate = endOfYear()
-  const ledgerFilters: LedgerFilters = {
-    from: parseDate(sp.from, defaultFromDate),
-    to: parseDate(sp.to, defaultToDate),
-    kind: parseKind(sp.kind),
-    category: parseCategory(sp.category),
-    includeVoided: sp.voided === "all",
-  }
+  const filters = parseLedgerFilters(sp)
+  const defaultFromIso = isoDate(defaultLedgerFrom())
+  const defaultToIso = isoDate(defaultLedgerTo())
 
   const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals, allProjects] =
     await Promise.all([
@@ -170,9 +127,9 @@ export default async function ProjectDetailPage({
       sumProjectRevenue(projectObjectId),
       listProjectMaterials(projectObjectId),
       listCatalog(),
-      isAdmin ? listLedger(projectObjectId, ledgerFilters) : Promise.resolve([]),
+      isAdmin ? listLedger(projectObjectId, filters) : Promise.resolve([]),
       isAdmin
-        ? computeTotals(projectObjectId, ledgerFilters)
+        ? computeTotals(projectObjectId, filters)
         : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
       listProjects(),
     ])
@@ -301,8 +258,8 @@ export default async function ProjectDetailPage({
               projectId={id}
               rows={ledgerRows}
               totals={totals}
-              defaultFrom={isoDate(defaultFromDate)}
-              defaultTo={isoDate(defaultToDate)}
+              defaultFrom={defaultFromIso}
+              defaultTo={defaultToIso}
               projects={projectsForPicker}
               otherProjectByRowId={otherProjectByRowId}
               linkedMaterials={linkedMaterials}
