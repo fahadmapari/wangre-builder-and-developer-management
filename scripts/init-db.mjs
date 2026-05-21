@@ -75,14 +75,16 @@ await db
   .createIndex({ reversalOf: 1 }, { sparse: true })
 
 // Phase 8 — ledger text search
-await db.collection("transactions").createIndex(
-  { description: "text", buyerName: "text", notes: "text" },
-  {
-    name: "transactions_text",
-    weights: { description: 10, buyerName: 5, notes: 1 },
-    default_language: "english",
-  },
-)
+await db
+  .collection("transactions")
+  .createIndex(
+    { description: "text", buyerName: "text", notes: "text" },
+    {
+      name: "transactions_text",
+      weights: { description: 10, buyerName: 5, notes: 1 },
+      default_language: "english",
+    },
+  )
 
 console.log(
   "Indexes ensured: users.email (unique); " +
