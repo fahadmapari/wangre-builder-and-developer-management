@@ -74,17 +74,9 @@ await db
   .collection("materialMovements")
   .createIndex({ reversalOf: 1 }, { sparse: true })
 
-// Phase 8 — ledger text search
-await db
-  .collection("transactions")
-  .createIndex(
-    { description: "text", buyerName: "text", notes: "text" },
-    {
-      name: "transactions_text",
-      weights: { description: 10, buyerName: 5, notes: 1 },
-      default_language: "english",
-    },
-  )
+// Phase 8 — ledger search uses an Atlas Search index named "default"
+// on transactions (paths: description, buyerName, notes). That index is
+// created/managed in the Atlas web console, NOT via createIndex here.
 
 console.log(
   "Indexes ensured: users.email (unique); " +
@@ -95,8 +87,7 @@ console.log(
     "projectMaterials.(projectId,materialId) unique, projectMaterials.(projectId); " +
     "materialMovements.(projectId,materialId,occurredAt), materialMovements.(projectId,kind,voided), materialMovements.(transactionId) sparse" +
     "; transactions.transferGroupId sparse; " +
-    "materialMovements.reversalOf sparse, materialMovements.transferGroupId sparse; " +
-    "transactions_text (description weight=10, buyerName=5, notes=1)"
+    "materialMovements.reversalOf sparse, materialMovements.transferGroupId sparse"
 )
 
 await client.close()
