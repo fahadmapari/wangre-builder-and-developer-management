@@ -90,11 +90,12 @@ Props:
 {
   entityType: "transaction" | "movement" | "unit" | "money_transfer" | "material_transfer"
   entityId: string
-  children: React.ReactNode  // the row content (passed as children, not a trigger prop)
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 ```
 
-The component renders a `<tr>` (or equivalent wrapper depending on context) with an `onClick` that opens a `<Sheet>`. On open it calls `fetchDrilldownDetail(entityType, entityId)` (server action). Sheet contains two tabs via shadcn `<Tabs>`: "Details" and "History". History tab content is fetched lazily on first activation via `getEntityHistory(entityType, entityId)`.
+The component is the sheet panel only — it does NOT render the `<tr>` or own the open state. The `<DrilldownRow>` wrappers own the `<tr>` click handler and the `open` / `setOpen` state, and render `<DrilldownSheet>` as a sibling or child. On `open=true`, `<DrilldownSheet>` calls `fetchDrilldownDetail(entityType, entityId)` (server action). Sheet contains two tabs via shadcn `<Tabs>`: "Details" and "History". History tab content is fetched lazily on first activation via `listEntityHistory(entityType, entityId)` (the existing export from `lib/audit/repository.ts`).
 
 Loading state: each tab shows a "Loading…" skeleton while its data is in flight.
 
@@ -152,13 +153,14 @@ From project · To project · Material name · Qty (with unit label) · Date · 
 
 ### History tab
 
-Calls `getEntityHistory(entityType, entityId)` — the existing server action already used by `<HistorySheet>`. Renders the same event list. Loaded lazily on first tab activation to avoid the extra DB round-trip when the user only wants Details.
+Calls `listEntityHistory(entityType, entityId)` — the existing function in `lib/audit/repository.ts` already used by `<HistorySheet>`. Renders the same event list. Loaded lazily on first tab activation to avoid the extra DB round-trip when the user only wants Details.
 
 Entity type mapping for history tab:
 - Transaction → `"transaction"`
 - Material movement → `"movement"`
 - Unit → `"unit"`
-- Money transfer / Material transfer → `"transaction"` (transfers are transactions in the DB; pass the transaction `_id`)
+- Money transfer → `"transaction"` (money transfers are transactions with `category: transfer_in/transfer_out`; pass the transaction `_id`)
+- Material transfer → `"movement"` (material transfers are `materialMovements` with `transferGroupId`; pass the movement `_id`)
 
 ### History button removal
 
