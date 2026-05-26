@@ -72,6 +72,12 @@ export type LedgerFilters = {
   kind: LedgerKindFilter
   category: LedgerCategoryFilter
   includeVoided: boolean
+  /**
+   * Raw trimmed query string. Only applied when length >= 2; shorter values
+   * (including empty string and undefined) are ignored by buildLedgerMatch.
+   * Max length is enforced at the page layer (200 chars).
+   */
+  search?: string
 }
 
 export const CreateAdhocIncomeInputSchema = z.object({

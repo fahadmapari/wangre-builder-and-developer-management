@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/session"
 import { listCrossProjectTotals } from "@/lib/transactions/repository"
+import { Button } from "@/components/ui/button"
 import { GlobalFilters } from "./global-filters"
 import { PerProjectTable } from "./per-project-table"
 
@@ -20,7 +21,10 @@ function endOfYear(): Date {
 }
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
 function parseDate(raw: string | undefined, fallback: Date): Date {
@@ -46,11 +50,21 @@ export default async function GlobalFinancialsPage({
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Financials</h1>
-        <p className="text-sm text-muted-foreground">
-          Cross-project revenue, expenses, and net across the filter window.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Financials</h1>
+          <p className="text-sm text-muted-foreground">
+            Cross-project revenue, expenses, and net across the filter window.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <a
+            href={`/api/export/financials-totals?from=${isoDate(from)}&to=${isoDate(to)}`}
+            download
+          >
+            Export totals CSV
+          </a>
+        </Button>
       </header>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile

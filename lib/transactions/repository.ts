@@ -192,6 +192,25 @@ function buildLedgerMatch(filters: LedgerFilters): Record<string, unknown> {
   return match
 }
 
+// Phase 8 — Atlas Search stage. The "default" search index lives on
+// wangredev.transactions and covers description / buyerName / notes.
+// Returns null when no search is active (or too short to be meaningful).
+function buildSearchStage(
+  search: string | undefined,
+): Record<string, unknown> | null {
+  const q = search?.trim()
+  if (!q || q.length < 2) return null
+  return {
+    $search: {
+      index: "default",
+      text: {
+        query: q,
+        path: ["description", "buyerName", "notes"],
+      },
+    },
+  }
+}
+
 function endOfDay(d: Date): Date {
   const e = new Date(d)
   e.setHours(23, 59, 59, 999)
@@ -206,9 +225,21 @@ export async function listLedger(
   filters: LedgerFilters
 ): Promise<Transaction[]> {
   const db = getDb()
+  const coll = db.collection<Transaction>("transactions")
   const match = { ...buildLedgerMatch(filters), projectId }
-  return db
-    .collection<Transaction>("transactions")
+  const searchStage = buildSearchStage(filters.search)
+
+  if (searchStage) {
+    return coll
+      .aggregate<Transaction>([
+        searchStage,
+        { $match: match },
+        { $sort: { occurredAt: -1, _id: -1 } },
+      ])
+      .toArray()
+  }
+
+  return coll
     .find(match)
     .sort({ occurredAt: -1, _id: -1 })
     .toArray()
@@ -234,55 +265,58 @@ export async function computeTotals(
 ): Promise<FinancialTotals> {
   const db = getDb()
   const match = { ...buildLedgerMatch(filters), projectId }
+  const searchStage = buildSearchStage(filters.search)
+  const pipeline: Record<string, unknown>[] = [
+    ...(searchStage ? [searchStage] : []),
+    { $match: match },
+    {
+      $facet: {
+        byKind: [
+          {
+            $group: {
+              _id: "$kind",
+              total: {
+                $sum: {
+                  $cond: [
+                    { $ifNull: ["$reversalOf", false] },
+                    { $multiply: ["$amount", -1] },
+                    "$amount",
+                  ],
+                },
+              },
+            },
+          },
+        ],
+        byTransferCategory: [
+          {
+            $match: {
+              category: { $in: ["transfer_in", "transfer_out"] },
+            },
+          },
+          {
+            $group: {
+              _id: "$category",
+              total: {
+                $sum: {
+                  $cond: [
+                    { $ifNull: ["$reversalOf", false] },
+                    { $multiply: ["$amount", -1] },
+                    "$amount",
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]
   const [bundle] = await db
     .collection<Transaction>("transactions")
     .aggregate<{
       byKind: { _id: TransactionKind; total: number }[]
       byTransferCategory: { _id: "transfer_in" | "transfer_out"; total: number }[]
-    }>([
-      { $match: match },
-      {
-        $facet: {
-          byKind: [
-            {
-              $group: {
-                _id: "$kind",
-                total: {
-                  $sum: {
-                    $cond: [
-                      { $ifNull: ["$reversalOf", false] },
-                      { $multiply: ["$amount", -1] },
-                      "$amount",
-                    ],
-                  },
-                },
-              },
-            },
-          ],
-          byTransferCategory: [
-            {
-              $match: {
-                category: { $in: ["transfer_in", "transfer_out"] },
-              },
-            },
-            {
-              $group: {
-                _id: "$category",
-                total: {
-                  $sum: {
-                    $cond: [
-                      { $ifNull: ["$reversalOf", false] },
-                      { $multiply: ["$amount", -1] },
-                      "$amount",
-                    ],
-                  },
-                },
-              },
-            },
-          ],
-        },
-      },
-    ])
+    }>(pipeline)
     .toArray()
 
   let revenue = 0

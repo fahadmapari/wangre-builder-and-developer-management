@@ -1,5 +1,6 @@
 import type { Transaction } from "@/lib/transactions/schemas"
 import type { FinancialTotals } from "@/lib/transactions/repository"
+import { Button } from "@/components/ui/button"
 import { LedgerFilters } from "./ledger-filters"
 import { LedgerTable } from "./ledger-table"
 import { AddIncomeButton } from "./add-income-dialog"
@@ -17,6 +18,8 @@ export function FinancialsView({
   projects,
   otherProjectByRowId,
   linkedMaterials,
+  search,
+  ledgerExportHref,
 }: {
   projectId: string
   rows: Transaction[]
@@ -29,6 +32,8 @@ export function FinancialsView({
     string,
     { name: string; unit: string; qty: number; projectName: string }
   >
+  search?: string
+  ledgerExportHref: string
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -65,14 +70,34 @@ export function FinancialsView({
           <AddIncomeButton projectId={projectId} />
           <AddExpenseButton projectId={projectId} />
           <MoneyTransferButton projects={projects} lockedSource={projectId} />
+          <Button asChild variant="outline" size="sm">
+            <a href={ledgerExportHref} download>
+              Export CSV
+            </a>
+          </Button>
         </div>
       </div>
       <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
-      <LedgerTable
-        rows={rows}
-        otherProjectByRowId={otherProjectByRowId}
-        linkedMaterials={linkedMaterials}
-      />
+      {search ? (
+        <p className="text-sm text-muted-foreground">
+          Showing matches for{" "}
+          <span className="font-medium text-foreground">&quot;{search}&quot;</span>
+          {" — "}use the search input above to refine or clear.
+        </p>
+      ) : null}
+      {rows.length === 0 ? (
+        <p className="rounded border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          {search
+            ? "No transactions match your search."
+            : "No transactions in this window."}
+        </p>
+      ) : (
+        <LedgerTable
+          rows={rows}
+          otherProjectByRowId={otherProjectByRowId}
+          linkedMaterials={linkedMaterials}
+        />
+      )}
     </div>
   )
 }

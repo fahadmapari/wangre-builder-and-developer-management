@@ -74,6 +74,10 @@ await db
   .collection("materialMovements")
   .createIndex({ reversalOf: 1 }, { sparse: true })
 
+// Phase 8 — ledger search uses an Atlas Search index named "default"
+// on transactions (paths: description, buyerName, notes). That index is
+// created/managed in the Atlas web console, NOT via createIndex here.
+
 console.log(
   "Indexes ensured: users.email (unique); " +
     "projects.createdAt, projects.name; " +
