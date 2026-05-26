@@ -47,12 +47,6 @@ export function LedgerFilters({
   const [searchValue, setSearchValue] = useState(initialSearch)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Re-sync local state if the URL changes externally (e.g. browser back button).
-  useEffect(() => {
-    const next = sp.get("search") ?? ""
-    void Promise.resolve().then(() => setSearchValue(next))
-  }, [sp])
-
   // Clean up the timer on unmount so a debounced fire after navigation is a no-op.
   useEffect(() => {
     return () => {
