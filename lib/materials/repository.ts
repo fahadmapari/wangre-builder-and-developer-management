@@ -212,6 +212,27 @@ export async function listMovementsForMaterial(
     .toArray()
 }
 
+/**
+ * Paginated version of listMovementsForMaterial. Used by the movements sheet's
+ * client-side pagination via /api/movements.
+ */
+export async function listMovements(
+  projectId: ObjectId,
+  materialId: ObjectId,
+  page: number,
+  pageSize: number,
+): Promise<Paginated<MaterialMovement>> {
+  const db = getDb()
+  const coll = db.collection<MaterialMovement>("materialMovements")
+  const query = { projectId, materialId }
+  const skip = (page - 1) * pageSize
+  const [rows, total] = await Promise.all([
+    coll.find(query).sort({ occurredAt: -1, createdAt: -1 }).skip(skip).limit(pageSize).toArray(),
+    coll.countDocuments(query),
+  ])
+  return { rows, total }
+}
+
 // ---- Movement writes -------------------------------------------------------
 
 /**
