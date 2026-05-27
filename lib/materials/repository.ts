@@ -6,6 +6,7 @@ import {
   CannotReverseTransferError,
   AlreadyReversedError,
 } from "@/lib/transactions/repository"
+import type { Paginated } from "@/lib/transactions/repository"
 import type { MaterialTransferRow } from "@/lib/transfers/schemas"
 import type { Project } from "@/lib/projects/schemas"
 import type {
@@ -764,38 +765,55 @@ export class InsufficientStockForReversalError extends Error {
   }
 }
 
-/**
- * List material transfers across all projects within a date range.
- *
- * Same shape as listMoneyTransfers but on the materialMovements collection.
- * One row per transferGroupId; status reflects whether the group has any
- * reversal legs. Date range matches against any original leg's occurredAt.
- */
 export async function listMaterialTransfers(
-  range: { from: Date; to: Date }
-): Promise<MaterialTransferRow[]> {
+  range: { from: Date; to: Date },
+  page: number,
+  pageSize: number,
+): Promise<Paginated<MaterialTransferRow>> {
   const db = getDb()
   const fromDate = new Date(range.from)
   const toDate = new Date(range.to)
   toDate.setHours(23, 59, 59, 999)
+  const skip = (page - 1) * pageSize
 
-  const candidates = await db
+  type CandFacet = {
+    rows: Array<{
+      _id: ObjectId
+      transferGroupId: ObjectId
+      occurredAt: Date
+    }>
+    total: { n: number }[]
+  }
+  const candFacets = await db
     .collection<MaterialMovement>("materialMovements")
-    .aggregate<{ _id: ObjectId }>([
+    .aggregate<CandFacet>([
       {
         $match: {
           transferGroupId: { $exists: true },
-          category: { $in: ["transfer_in", "transfer_out"] },
+          category: "transfer_out",
           occurredAt: { $gte: fromDate, $lte: toDate },
           reversalOf: { $exists: false },
         },
       },
-      { $group: { _id: "$transferGroupId" } },
+      { $sort: { occurredAt: -1, _id: -1 } },
+      {
+        $facet: {
+          rows: [
+            { $skip: skip },
+            { $limit: pageSize },
+            { $project: { _id: 1, transferGroupId: 1, occurredAt: 1 } },
+          ],
+          total: [{ $count: "n" }],
+        },
+      },
     ])
     .toArray()
-  const groupIds = candidates.map((c) => c._id)
-  if (groupIds.length === 0) return []
+  const facet = candFacets[0]
+  const sourceLegs = facet?.rows ?? []
+  const total = facet?.total[0]?.n ?? 0
+  if (sourceLegs.length === 0) return { rows: [], total }
 
+  const groupIds = sourceLegs.map((s) => s.transferGroupId)
   const allRows = await db
     .collection<MaterialMovement>("materialMovements")
     .find({ transferGroupId: { $in: groupIds } })
@@ -823,14 +841,14 @@ export async function listMaterialTransfers(
     .project<{ _id: ObjectId; name: string }>({ name: 1 })
     .toArray()
   const projectNameById = new Map(
-    projectsList.map((p) => [p._id.toHexString(), p.name])
+    projectsList.map((p) => [p._id.toHexString(), p.name]),
   )
   const materialsList = await db
     .collection<Material>("materials")
     .find({ _id: { $in: [...materialIds].map((id) => new ObjectId(id)) } })
     .toArray()
   const materialById = new Map(
-    materialsList.map((m) => [m._id.toHexString(), m])
+    materialsList.map((m) => [m._id.toHexString(), m]),
   )
   const usersList = await db
     .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
@@ -838,13 +856,16 @@ export async function listMaterialTransfers(
     .project<{ _id: ObjectId; name?: string; email?: string }>({ name: 1, email: 1 })
     .toArray()
   const userNameById = new Map(
-    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null])
+    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null]),
   )
 
-  const result: MaterialTransferRow[] = []
-  for (const [groupKey, rows] of byGroup) {
-    const originals = rows.filter((r) => !r.reversalOf)
-    const reversals = rows.filter((r) => r.reversalOf)
+  const rows: MaterialTransferRow[] = []
+  for (const source of sourceLegs) {
+    const groupKey = source.transferGroupId.toHexString()
+    const legs = byGroup.get(groupKey)
+    if (!legs) continue
+    const originals = legs.filter((r) => !r.reversalOf)
+    const reversals = legs.filter((r) => r.reversalOf)
     const sourceLeg = originals.find((r) => r.category === "transfer_out")
     const destLeg = originals.find((r) => r.category === "transfer_in")
     if (!sourceLeg || !destLeg) continue
@@ -856,11 +877,11 @@ export async function listMaterialTransfers(
       reversals.length > 0
         ? reversals.reduce(
             (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
-            null as Date | null
+            null as Date | null,
           )
         : null
 
-    result.push({
+    rows.push({
       transferGroupId: groupKey,
       sourceMovId: sourceLeg._id.toHexString(),
       occurredAt: sourceLeg.occurredAt,
@@ -884,11 +905,5 @@ export async function listMaterialTransfers(
         userNameById.get(sourceLeg.createdBy.toHexString()) ?? null,
     })
   }
-
-  result.sort((a, b) => {
-    const d = b.occurredAt.getTime() - a.occurredAt.getTime()
-    if (d !== 0) return d
-    return b.transferGroupId.localeCompare(a.transferGroupId)
-  })
-  return result
+  return { rows, total }
 }
