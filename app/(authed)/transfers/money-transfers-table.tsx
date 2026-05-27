@@ -1,18 +1,6 @@
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import type { MoneyTransferRow } from "@/lib/transfers/schemas"
-import { HistorySheet } from "@/app/(authed)/components/history-sheet"
-import { ReverseTransferButton } from "./reverse-transfer-dialog"
-
-const INR = new Intl.NumberFormat("en-IN")
-
-function fmtDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
+import type { MoneyTransferRow as MoneyTransferRowData } from "@/lib/transfers/schemas"
+import { MoneyTransferRow } from "./money-transfer-row"
 
 export function MoneyTransfersTable({
   rows,
@@ -21,7 +9,7 @@ export function MoneyTransfersTable({
   total,
   searchParams,
 }: {
-  rows: MoneyTransferRow[]
+  rows: MoneyTransferRowData[]
   page: number
   pageSize: number
   total: number
@@ -53,53 +41,21 @@ export function MoneyTransfersTable({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr
+              <MoneyTransferRow
                 key={r.transferGroupId}
-                className="border-b border-border last:border-0"
-              >
-                <td className="px-4 py-3 font-mono text-xs">{fmtDate(r.occurredAt)}</td>
-                <td className="px-4 py-3">
-                  <span>{r.sourceProjectName}</span>
-                  <span className="px-2 text-muted-foreground">→</span>
-                  <span>{r.destProjectName}</span>
-                </td>
-                <td className="px-4 py-3 text-right font-mono">
-                  ₹{INR.format(r.amount)}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{r.description}</td>
-                <td className="px-4 py-3">
-                  {r.status === "reversed" ? (
-                    <Badge variant="secondary">
-                      Reversed{r.reversedAt ? ` on ${fmtDate(r.reversedAt)}` : ""}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">Active</Badge>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {r.createdByName ?? "—"}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <HistorySheet
-                      entityType="transaction"
-                      entityId={r.sourceTxId}
-                      trigger={
-                        <Button variant="ghost" size="sm">
-                          History
-                        </Button>
-                      }
-                    />
-                    {r.status === "active" ? (
-                      <ReverseTransferButton
-                        transferGroupId={r.transferGroupId}
-                        kind="money"
-                        summary={`${r.sourceProjectName} → ${r.destProjectName} · ₹${INR.format(r.amount)}`}
-                      />
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
+                row={{
+                  transferGroupId: r.transferGroupId,
+                  sourceTxId: r.sourceTxId,
+                  occurredAt: r.occurredAt.toISOString(),
+                  sourceProjectName: r.sourceProjectName,
+                  destProjectName: r.destProjectName,
+                  amount: r.amount,
+                  description: r.description,
+                  status: r.status,
+                  reversedAt: r.reversedAt ? r.reversedAt.toISOString() : null,
+                  createdByName: r.createdByName,
+                }}
+              />
             ))}
           </tbody>
         </table>
