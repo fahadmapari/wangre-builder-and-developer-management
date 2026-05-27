@@ -46,6 +46,16 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+function parsePage(raw: string | undefined): number {
+  if (!raw) return 1
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 1
+  return n
+}
+
+const LEDGER_PAGE_SIZE = 50
+const UNITS_PAGE_SIZE = 50
+
 // Build a Map<transactionId, { name, unit, qty, projectName }> for purchase
 // rows on the current page, so the Reverse dialog can pre-fill the helper
 // text. Non-purchase rows have no entry; the dialog hides the checkbox.
@@ -102,6 +112,8 @@ type AllSearchParams = InventoryFilterParams & {
   category?: string
   voided?: string
   search?: string
+  page?: string
+  unitsPage?: string
 }
 
 export default async function ProjectDetailPage({
@@ -120,6 +132,7 @@ export default async function ProjectDetailPage({
   const isAdmin = user.role === "admin"
 
   const filters = parseLedgerFilters(sp)
+  const page = parsePage(sp.page)
   const defaultFromIso = isoDate(defaultLedgerFrom())
   const defaultToIso = isoDate(defaultLedgerTo())
 
@@ -133,20 +146,25 @@ export default async function ProjectDetailPage({
   if (filters.search) exportParams.set("search", filters.search)
   const ledgerExportHref = `/api/export/ledger?${exportParams.toString()}`
 
-  const [project, soldCount, revenue, materialRows, catalog, ledgerRows, totals, allProjects] =
+  const [project, soldCount, revenue, materialRows, catalog, ledgerResult, totals, allProjects] =
     await Promise.all([
       getProject(id),
       countSoldUnits(projectObjectId),
       sumProjectRevenue(projectObjectId),
       listProjectMaterials(projectObjectId),
       listCatalog(),
-      isAdmin ? listLedger(projectObjectId, filters) : Promise.resolve([]),
+      isAdmin
+        ? listLedger(projectObjectId, filters, page, LEDGER_PAGE_SIZE)
+        : Promise.resolve({ rows: [], total: 0 }),
       isAdmin
         ? computeTotals(projectObjectId, filters)
         : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
       listProjects(),
     ])
   if (!project) notFound()
+
+  const ledgerRows = ledgerResult.rows
+  const ledgerTotal = ledgerResult.total
 
   // Compute peer-project lookup for transfer badge in ledger
   const transferGroupIds = ledgerRows
@@ -278,6 +296,10 @@ export default async function ProjectDetailPage({
               linkedMaterials={linkedMaterials}
               search={filters.search}
               ledgerExportHref={ledgerExportHref}
+              page={page}
+              pageSize={LEDGER_PAGE_SIZE}
+              total={ledgerTotal}
+              currentSearchParams={sp}
             />
           ) : undefined
         }
