@@ -271,6 +271,9 @@ export default async function ProjectDetailPage({
               projectId={id}
               role={user.role}
               searchParams={sp}
+              page={parsePage(sp.unitsPage)}
+              pageSize={UNITS_PAGE_SIZE}
+              currentSearchParams={sp}
             />
           </div>
         }
