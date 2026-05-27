@@ -1,24 +1,6 @@
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import type { MaterialTransferRow } from "@/lib/transfers/schemas"
-import type { MaterialUnit } from "@/lib/materials/schemas"
-import { HistorySheet } from "@/app/(authed)/components/history-sheet"
-import { ReverseTransferButton } from "./reverse-transfer-dialog"
-
-function fmtDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
-function formatUnit(unit: MaterialUnit, unitOther?: string): string {
-  if (unit === "other") return unitOther || "—"
-  if (unit === "m2") return "m²"
-  if (unit === "m3") return "m³"
-  return unit
-}
+import type { MaterialTransferRow as MaterialTransferRowData } from "@/lib/transfers/schemas"
+import { MaterialTransferRow } from "./material-transfer-row"
 
 export function MaterialTransfersTable({
   rows,
@@ -27,7 +9,7 @@ export function MaterialTransfersTable({
   total,
   searchParams,
 }: {
-  rows: MaterialTransferRow[]
+  rows: MaterialTransferRowData[]
   page: number
   pageSize: number
   total: number
@@ -58,60 +40,25 @@ export function MaterialTransfersTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
-              const unitLabel = formatUnit(r.materialUnit, r.materialUnitOther)
-              return (
-                <tr
-                  key={r.transferGroupId}
-                  className="border-b border-border last:border-0"
-                >
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {fmtDate(r.occurredAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span>{r.sourceProjectName}</span>
-                    <span className="px-2 text-muted-foreground">→</span>
-                    <span>{r.destProjectName}</span>
-                  </td>
-                  <td className="px-4 py-3">{r.materialName}</td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {r.qty} {unitLabel}
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.status === "reversed" ? (
-                      <Badge variant="secondary">
-                        Reversed{r.reversedAt ? ` on ${fmtDate(r.reversedAt)}` : ""}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Active</Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {r.createdByName ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <HistorySheet
-                        entityType="movement"
-                        entityId={r.sourceMovId}
-                        trigger={
-                          <Button variant="ghost" size="sm">
-                            History
-                          </Button>
-                        }
-                      />
-                      {r.status === "active" ? (
-                        <ReverseTransferButton
-                          transferGroupId={r.transferGroupId}
-                          kind="material"
-                          summary={`${r.sourceProjectName} → ${r.destProjectName} · ${r.qty} ${unitLabel} ${r.materialName}`}
-                        />
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
+            {rows.map((r) => (
+              <MaterialTransferRow
+                key={r.transferGroupId}
+                row={{
+                  transferGroupId: r.transferGroupId,
+                  sourceMovId: r.sourceMovId,
+                  occurredAt: r.occurredAt.toISOString(),
+                  sourceProjectName: r.sourceProjectName,
+                  destProjectName: r.destProjectName,
+                  materialName: r.materialName,
+                  materialUnit: r.materialUnit,
+                  materialUnitOther: r.materialUnitOther,
+                  qty: r.qty,
+                  status: r.status,
+                  reversedAt: r.reversedAt ? r.reversedAt.toISOString() : null,
+                  createdByName: r.createdByName,
+                }}
+              />
+            ))}
           </tbody>
         </table>
       </Card>
