@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { HistoryDialog } from "@/app/(authed)/components/history-sheet"
+import { DrilldownSheet } from "@/app/(authed)/components/drilldown-sheet"
 import type { MaterialMovement } from "@/lib/materials/schemas"
 import type { Role } from "@/types"
 
@@ -57,6 +57,7 @@ export function MovementsSheetButton({
   const [rows, setRows] = useState<MovementRow[] | null>(null)
   const [total, setTotal] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [drilldownId, setDrilldownId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -85,7 +86,6 @@ export function MovementsSheetButton({
 
   const loading = open && rows === null && error === null
   const showAmount = role === "admin"
-  const isAdmin = role === "admin"
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
@@ -106,6 +106,7 @@ export function MovementsSheetButton({
             setError(null)
             setPage(1)
             setTotal(0)
+            setDrilldownId(null)
           }
         }}
       >
@@ -113,7 +114,7 @@ export function MovementsSheetButton({
           <SheetHeader>
             <SheetTitle>{materialName} — movement history</SheetTitle>
             <SheetDescription>
-              Newest first. Quantities in {unitLabel}.
+              Newest first. Quantities in {unitLabel}. Click a row for details.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 flex flex-col gap-3">
@@ -133,14 +134,14 @@ export function MovementsSheetButton({
                       <th className="py-2 text-right">Qty</th>
                       {showAmount ? <th className="py-2 text-right">Amount</th> : null}
                       <th className="py-2">Purpose / notes</th>
-                      {isAdmin ? <th className="py-2 text-right">Actions</th> : null}
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r) => (
                       <tr
                         key={r._id}
-                        className="border-b border-border last:border-0"
+                        className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/40"
+                        onClick={() => setDrilldownId(r._id)}
                       >
                         <td className="py-2 font-mono">
                           {new Date(r.occurredAt).toLocaleDateString()}
@@ -162,19 +163,6 @@ export function MovementsSheetButton({
                         <td className="py-2 text-muted-foreground">
                           {[r.purpose, r.notes].filter(Boolean).join(" — ")}
                         </td>
-                        {isAdmin ? (
-                          <td className="py-2 text-right">
-                            <HistoryDialog
-                              entityType="movement"
-                              entityId={r._id}
-                              trigger={
-                                <Button variant="ghost" size="sm">
-                                  History
-                                </Button>
-                              }
-                            />
-                          </td>
-                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -209,6 +197,15 @@ export function MovementsSheetButton({
           </div>
         </SheetContent>
       </Sheet>
+      <DrilldownSheet
+        entityType="movement"
+        entityId={drilldownId ?? ""}
+        role={role}
+        open={drilldownId !== null}
+        onOpenChange={(o) => {
+          if (!o) setDrilldownId(null)
+        }}
+      />
     </>
   )
 }
