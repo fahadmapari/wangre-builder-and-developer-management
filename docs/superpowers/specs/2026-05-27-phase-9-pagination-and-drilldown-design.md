@@ -48,7 +48,18 @@ const [rows, total] = await Promise.all([
 return { rows, total }
 ```
 
-The Atlas Search path in `listLedger` (when `search` is active) uses the aggregation pipeline. Pagination there uses `$skip` / `$limit` stages appended after `$sort`. The `$count` facet already present in `computeTotals` is NOT reused — `listLedger` gets its own `$count` stage in the aggregate when search is active, matching the find-path's `countDocuments` return shape.
+The Atlas Search path in `listLedger` (when `search` is active) uses the aggregation pipeline. To return `{ rows, total }` in a single round-trip, the pipeline ends with a `$facet` stage with two branches:
+
+```
+$facet: {
+  rows:  [{ $skip: skip }, { $limit: pageSize }],
+  total: [{ $count: "n" }],
+}
+```
+
+The result is then unwrapped: `rows = result[0].rows` and `total = result[0].total[0]?.n ?? 0` (the `total` branch returns an empty array when there are zero matches). The `$count` facet on `computeTotals` is separate and unchanged.
+
+Out-of-range pages: if `page > totalPages`, `listLedger` and the other paginated functions return `{ rows: [], total }` without error. The page component clamps display to `Math.min(page, totalPages)` for the "Page X of Y" indicator.
 
 Functions to update:
 - `lib/transactions/repository.ts` — `listLedger` (find path + Atlas Search aggregate path), `listMoneyTransfers`
@@ -57,7 +68,7 @@ Functions to update:
 
 ### URL wiring
 
-All server-rendered tables: `?page=N` parsed from `searchParams` (integer ≥ 1, default 1). Any filter change resets `page` to 1 (the filter components call `router.replace` with the new filters and no `page` param, same pattern as existing filter components).
+All server-rendered tables: `?page=N` parsed from `searchParams`. Parse as `Number(sp.page)`; if not a finite integer ≥ 1, fall back to 1. Any filter change resets `page` to 1 — filter components build their next URL from scratch via a fresh `URLSearchParams`, omitting `page`. The Phase 8 ledger search input (`ledger-filters.tsx`) must also rebuild without `page`; verify on the way through.
 
 `totalPages = Math.max(1, Math.ceil(total / pageSize))`
 
@@ -123,7 +134,11 @@ export async function fetchDrilldownDetail(
 ): Promise<DrilldownDetail>
 ```
 
-Returns a discriminated union `DrilldownDetail` typed by `entityType`. Each variant carries all fields needed for the Details tab. Auth check: `await requireAuth()` at the top (detail is visible to both roles, but admin-only fields are omitted for floor_manager — the action checks role and strips `amount` fields accordingly).
+Returns a discriminated union `DrilldownDetail` typed by `entityType`. Each variant carries all fields needed for the Details tab.
+
+Auth: the action begins by resolving the session, then branches on `entityType`:
+- `"transaction" | "money_transfer"` → `requireAdmin()`. Transactions and money transfers are financials-domain; floor managers have no UI path to open them. The server action rejects FM defensively.
+- `"movement" | "unit" | "material_transfer"` → `requireAuth()`. Both roles can open these. For `"movement"`, the `amount` field is omitted when the caller is a floor manager (matches existing FM behavior in movements list).
 
 ### Details tab content per entity type
 
@@ -159,8 +174,10 @@ Entity type mapping for history tab:
 - Transaction → `"transaction"`
 - Material movement → `"movement"`
 - Unit → `"unit"`
-- Money transfer → `"transaction"` (money transfers are transactions with `category: transfer_in/transfer_out`; pass the transaction `_id`)
-- Material transfer → `"movement"` (material transfers are `materialMovements` with `transferGroupId`; pass the movement `_id`)
+- Money transfer → `"transaction"` — pass `sourceTxId` from `MoneyTransferRow` (the source-leg transaction `_id` already carried for the existing History lookup)
+- Material transfer → `"movement"` — pass `sourceMovId` from `MaterialTransferRow` (the source-leg movement `_id` already carried for the existing History lookup)
+
+The drilldown `entityId` for transfer rows is therefore `sourceTxId` / `sourceMovId`, never the `transferGroupId`. `fetchDrilldownDetail` for `entityType: "money_transfer" | "material_transfer"` receives that source-leg `_id` and looks up the peer leg internally via `transferGroupId`.
 
 ### History button removal
 
@@ -189,6 +206,7 @@ The shared `<HistorySheet>` / `<HistoryDialog>` components in `app/(authed)/comp
 - `app/(authed)/projects/[id]/page.tsx` — units + ledger pagination URL wiring
 - `app/(authed)/projects/[id]/financials/financials-view.tsx` — `total` / `totalPages` props, `<Pagination>`
 - `app/(authed)/projects/[id]/financials/ledger-table.tsx` — rows via `<LedgerRow>`
+- `app/(authed)/projects/[id]/financials/ledger-filters.tsx` — verify URL rebuild omits `page` on every filter/search change
 - `app/(authed)/projects/[id]/financials/row-actions-menu.tsx` — remove History item
 - `app/(authed)/transfers/page.tsx` — pagination URL wiring for both tabs
 - `app/(authed)/transfers/money-transfers-table.tsx` — `<Pagination>` + `<MoneyTransferRow>`
@@ -196,7 +214,7 @@ The shared `<HistorySheet>` / `<HistoryDialog>` components in `app/(authed)/comp
 - `app/(authed)/projects/[id]/materials/movements-sheet.tsx` — client-side page state, Prev/Next, drilldown per row, remove `<HistoryDialog>`
 - `app/api/movements/route.ts` — `page` / `pageSize` query params
 
-**Total: ~18 files**
+**Total: ~19 files**
 
 ---
 
