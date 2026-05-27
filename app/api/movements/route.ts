@@ -1,7 +1,23 @@
 import { ObjectId } from "mongodb"
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth/session"
-import { listMovementsForMaterial } from "@/lib/materials/repository"
+import { listMovements } from "@/lib/materials/repository"
+
+const DEFAULT_PAGE_SIZE = 50
+
+function parsePage(raw: string | null): number {
+  if (!raw) return 1
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 1
+  return n
+}
+
+function parsePageSize(raw: string | null): number {
+  if (!raw) return DEFAULT_PAGE_SIZE
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return DEFAULT_PAGE_SIZE
+  return Math.min(200, n)
+}
 
 export async function GET(req: Request) {
   const user = await requireAuth()
@@ -9,16 +25,16 @@ export async function GET(req: Request) {
   const projectId = searchParams.get("projectId") ?? ""
   const materialId = searchParams.get("materialId") ?? ""
   if (!ObjectId.isValid(projectId) || !ObjectId.isValid(materialId)) {
-    return NextResponse.json({ rows: [] }, { status: 400 })
+    return NextResponse.json({ rows: [], total: 0 }, { status: 400 })
   }
-  const movements = await listMovementsForMaterial(
+  const page = parsePage(searchParams.get("page"))
+  const pageSize = parsePageSize(searchParams.get("pageSize"))
+  const { rows: movements, total } = await listMovements(
     new ObjectId(projectId),
-    new ObjectId(materialId)
+    new ObjectId(materialId),
+    page,
+    pageSize,
   )
-  // Server-side strip for floor managers: omit `amount` from the FM payload.
-  // `unitPriceAtMovement` is never serialized for either role — the sheet UI
-  // does not have a column for it. The historical price is recorded on the
-  // movement row in Mongo for audit purposes but is not exposed via this API.
   const stripMoney = user.role !== "admin"
   const rows = movements.map((m) => ({
     _id: String(m._id),
@@ -31,5 +47,5 @@ export async function GET(req: Request) {
     occurredAt: m.occurredAt.toISOString(),
     voided: m.voided === true ? true : undefined,
   }))
-  return NextResponse.json({ rows })
+  return NextResponse.json({ rows, total })
 }
