@@ -21,6 +21,10 @@ export function GlobalFilters({
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp.toString())
+    next.delete("page")
+    next.delete("moneyPage")
+    next.delete("materialPage")
+    next.delete("unitsPage")
     next.set(key, value)
     startTransition(() => {
       router.replace(`?${next.toString()}`, { scroll: false })

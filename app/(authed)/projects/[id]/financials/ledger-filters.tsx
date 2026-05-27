@@ -57,6 +57,7 @@ export function LedgerFilters({
   function applySearch(next: string) {
     const trimmed = next.trim()
     const params = new URLSearchParams(sp.toString())
+    params.delete("page")
     if (trimmed.length >= 2) params.set("search", trimmed)
     else params.delete("search")
     startTransition(() => {
@@ -83,6 +84,7 @@ export function LedgerFilters({
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(sp.toString())
+    next.delete("page")
     next.set(key, value)
     startTransition(() => {
       router.replace(`?${next.toString()}`, { scroll: false })
