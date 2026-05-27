@@ -218,31 +218,61 @@ function endOfDay(d: Date): Date {
 }
 
 /**
- * Returns the filtered ledger for a single project. Newest first.
+ * Returns the filtered ledger for a single project, paginated. Newest first.
+ * Page is 1-based. Out-of-range pages return { rows: [], total }.
  */
 export async function listLedger(
   projectId: ObjectId,
-  filters: LedgerFilters
-): Promise<Transaction[]> {
+  filters: LedgerFilters,
+  page: number,
+  pageSize: number,
+): Promise<Paginated<Transaction>> {
   const db = getDb()
   const coll = db.collection<Transaction>("transactions")
   const match = { ...buildLedgerMatch(filters), projectId }
   const searchStage = buildSearchStage(filters.search)
+  const skip = (page - 1) * pageSize
 
   if (searchStage) {
-    return coll
-      .aggregate<Transaction>([
+    type FacetResult = {
+      rows: Transaction[]
+      total: { n: number }[]
+    }
+    const result = await coll
+      .aggregate<FacetResult>([
         searchStage,
         { $match: match },
         { $sort: { occurredAt: -1, _id: -1 } },
+        {
+          $facet: {
+            rows: [{ $skip: skip }, { $limit: pageSize }],
+            total: [{ $count: "n" }],
+          },
+        },
       ])
       .toArray()
+    const facet = result[0]
+    return {
+      rows: facet?.rows ?? [],
+      total: facet?.total[0]?.n ?? 0,
+    }
   }
 
-  return coll
-    .find(match)
-    .sort({ occurredAt: -1, _id: -1 })
-    .toArray()
+  const [rows, total] = await Promise.all([
+    coll
+      .find(match)
+      .sort({ occurredAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .toArray(),
+    coll.countDocuments(match),
+  ])
+  return { rows, total }
+}
+
+export type Paginated<T> = {
+  rows: T[]
+  total: number
 }
 
 export type FinancialTotals = {
@@ -923,31 +953,53 @@ export async function reverseMoneyTransfer(
  *
  * Date range applies to the source leg's `occurredAt`. Reversed-but-original-
  * before-window groups are still returned if their original date is in range.
+ *
+ * Results are paginated at the aggregation level for performance.
  */
 export async function listMoneyTransfers(
-  range: { from: Date; to: Date }
-): Promise<MoneyTransferRow[]> {
+  range: { from: Date; to: Date },
+  page: number,
+  pageSize: number,
+): Promise<Paginated<MoneyTransferRow>> {
   const db = getDb()
   const fromDate = new Date(range.from)
   const toDate = endOfDay(range.to)
+  const skip = (page - 1) * pageSize
 
-  const candidates = await db
+  type CandFacet = {
+    rows: Array<{ transferGroupId: ObjectId; occurredAt: Date; _id: ObjectId }>
+    total: { n: number }[]
+  }
+  const candFacets = await db
     .collection<Transaction>("transactions")
-    .aggregate<{ _id: ObjectId }>([
+    .aggregate<CandFacet>([
       {
         $match: {
           transferGroupId: { $exists: true },
-          category: { $in: ["transfer_in", "transfer_out"] },
+          category: "transfer_out",
           occurredAt: { $gte: fromDate, $lte: toDate },
           reversalOf: { $exists: false },
         },
       },
-      { $group: { _id: "$transferGroupId" } },
+      { $sort: { occurredAt: -1, _id: -1 } },
+      {
+        $facet: {
+          rows: [
+            { $skip: skip },
+            { $limit: pageSize },
+            { $project: { _id: 1, transferGroupId: 1, occurredAt: 1 } },
+          ],
+          total: [{ $count: "n" }],
+        },
+      },
     ])
     .toArray()
-  const groupIds = candidates.map((c) => c._id)
-  if (groupIds.length === 0) return []
+  const facet = candFacets[0]
+  const sourceLegs = facet?.rows ?? []
+  const total = facet?.total[0]?.n ?? 0
+  if (sourceLegs.length === 0) return { rows: [], total }
 
+  const groupIds = sourceLegs.map((s) => s.transferGroupId)
   const allRows = await db
     .collection<Transaction>("transactions")
     .find({ transferGroupId: { $in: groupIds } })
@@ -973,7 +1025,7 @@ export async function listMoneyTransfers(
     .project<{ _id: ObjectId; name: string }>({ name: 1 })
     .toArray()
   const projectNameById = new Map(
-    projectsList.map((p) => [p._id.toHexString(), p.name])
+    projectsList.map((p) => [p._id.toHexString(), p.name]),
   )
   const usersList = await db
     .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
@@ -981,13 +1033,16 @@ export async function listMoneyTransfers(
     .project<{ _id: ObjectId; name?: string; email?: string }>({ name: 1, email: 1 })
     .toArray()
   const userNameById = new Map(
-    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null])
+    usersList.map((u) => [u._id.toHexString(), u.name ?? u.email ?? null]),
   )
 
-  const result: MoneyTransferRow[] = []
-  for (const [groupKey, rows] of byGroup) {
-    const originals = rows.filter((r) => !r.reversalOf)
-    const reversals = rows.filter((r) => r.reversalOf)
+  const rows: MoneyTransferRow[] = []
+  for (const source of sourceLegs) {
+    const groupKey = source.transferGroupId.toHexString()
+    const legs = byGroup.get(groupKey)
+    if (!legs) continue
+    const originals = legs.filter((r) => !r.reversalOf)
+    const reversals = legs.filter((r) => r.reversalOf)
     const sourceLeg = originals.find((r) => r.category === "transfer_out")
     const destLeg = originals.find((r) => r.category === "transfer_in")
     if (!sourceLeg || !destLeg) continue
@@ -996,11 +1051,11 @@ export async function listMoneyTransfers(
       reversals.length > 0
         ? reversals.reduce(
             (min, r) => (min === null || r.createdAt < min ? r.createdAt : min),
-            null as Date | null
+            null as Date | null,
           )
         : null
 
-    result.push({
+    rows.push({
       transferGroupId: groupKey,
       sourceTxId: sourceLeg._id.toHexString(),
       occurredAt: sourceLeg.occurredAt,
@@ -1021,13 +1076,8 @@ export async function listMoneyTransfers(
         userNameById.get(sourceLeg.createdBy.toHexString()) ?? null,
     })
   }
-
-  result.sort((a, b) => {
-    const d = b.occurredAt.getTime() - a.occurredAt.getTime()
-    if (d !== 0) return d
-    return b.transferGroupId.localeCompare(a.transferGroupId)
-  })
-  return result
+  // Page order already established by the candidate $sort; do not re-sort here.
+  return { rows, total }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

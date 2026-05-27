@@ -1,42 +1,19 @@
 import { ObjectId } from "mongodb"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import type { Transaction } from "@/lib/transactions/schemas"
 import type { Unit } from "@/lib/projects/schemas"
 import { getDb } from "@/lib/db/client"
-import { RowActionsMenu } from "./row-actions-menu"
-
-const INR = new Intl.NumberFormat("en-IN")
-
-function fmtAmount(t: Transaction): string {
-  const sign = t.reversalOf ? "−" : ""
-  return `${sign}₹${INR.format(t.amount)}`
-}
-
-function categoryLabel(c: Transaction["category"]): string {
-  switch (c) {
-    case "sale":
-      return "Sale"
-    case "purchase":
-      return "Purchase"
-    case "adhoc":
-      return "Ad-hoc"
-    case "transfer_in":
-      return "Transfer in"
-    case "transfer_out":
-      return "Transfer out"
-  }
-}
+import { LedgerRow } from "./ledger-row"
 
 async function fetchUnitsForRows(
-  rows: Transaction[]
+  rows: Transaction[],
 ): Promise<Map<string, string>> {
   const unitIds = Array.from(
     new Set(
       rows
         .filter((r) => r.category === "sale" && r.unitId)
-        .map((r) => (r.unitId as ObjectId).toHexString())
-    )
+        .map((r) => (r.unitId as ObjectId).toHexString()),
+    ),
   )
   if (unitIds.length === 0) return new Map()
   const db = getDb()
@@ -52,7 +29,7 @@ async function fetchUnitsForRows(
     docs.map((d) => [
       d._id.toHexString(),
       `${d.type === "apartment" ? "Apt" : "Parking"} ${d.number}`,
-    ])
+    ]),
   )
 }
 
@@ -94,61 +71,33 @@ export async function LedgerTable({
         </thead>
         <tbody>
           {rows.map((r) => {
-            const voided = r.voided === true
-            const isReversal = r.reversalOf != null
-            const rowClass = voided
-              ? "border-b border-border last:border-0 opacity-60 line-through"
-              : "border-b border-border last:border-0"
+            const id = r._id.toHexString()
             const unitLabel =
               r.unitId && r.category === "sale"
-                ? (unitLabels.get(r.unitId.toHexString()) ?? "")
+                ? (unitLabels.get((r.unitId as ObjectId).toHexString()) ?? "")
                 : ""
             return (
-              <tr key={String(r._id)} className={rowClass}>
-                <td className="px-4 py-3 font-mono">
-                  {r.occurredAt.toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant={r.kind === "income" ? "default" : "secondary"}>
-                      {r.kind === "income" ? "Income" : "Expense"}
-                    </Badge>
-                    {isReversal ? (
-                      <Badge variant="outline" className="text-xs">
-                        Reversal
-                      </Badge>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge variant="secondary">{categoryLabel(r.category)}</Badge>
-                </td>
-                <td className="px-4 py-3 text-right font-mono">{fmtAmount(r)}</td>
-                <td className="px-4 py-3">
-                  {r.description}
-                  {r.transferGroupId ? (
-                    <Badge variant="outline" className="ml-2 text-xs">
-                      ↔ {otherProjectByRowId.get(r._id.toHexString()) ?? "Other project"}
-                    </Badge>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {r.buyerName ?? ""}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{unitLabel}</td>
-                <td className="px-4 py-3 text-right">
-                  <RowActionsMenu
-                    transactionId={String(r._id)}
-                    description={r.description}
-                    amount={r.amount}
-                    kind={r.kind}
-                    category={r.category}
-                    voided={voided}
-                    isReversal={isReversal}
-                    linkedMaterial={linkedMaterials?.get(r._id.toHexString())}
-                  />
-                </td>
-              </tr>
+              <LedgerRow
+                key={id}
+                row={{
+                  _id: id,
+                  occurredAt: r.occurredAt.toISOString(),
+                  kind: r.kind,
+                  category: r.category,
+                  amount: r.amount,
+                  description: r.description,
+                  buyerName: r.buyerName ?? null,
+                  notes: r.notes ?? null,
+                  voided: r.voided === true,
+                  isReversal: r.reversalOf != null,
+                  transferGroupId:
+                    r.transferGroupId ? r.transferGroupId.toHexString() : null,
+                  unitLabel,
+                  peerProjectName:
+                    otherProjectByRowId.get(id) ?? null,
+                }}
+                linkedMaterial={linkedMaterials?.get(id)}
+              />
             )
           })}
         </tbody>

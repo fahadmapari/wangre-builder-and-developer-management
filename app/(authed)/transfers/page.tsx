@@ -14,6 +14,8 @@ import { MaterialTransfersTable } from "./material-transfers-table"
 import { MoneyTransferButton } from "./money-transfer-dialog"
 import { MaterialTransferButton } from "./material-transfer-dialog"
 
+const TRANSFERS_PAGE_SIZE = 50
+
 function startOfYear(): Date {
   const d = new Date()
   return new Date(d.getFullYear(), 0, 1)
@@ -26,7 +28,17 @@ function parseDate(raw: string | undefined, fallback: Date): Date {
 }
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function parsePage(raw: string | undefined): number {
+  if (!raw) return 1
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 1
+  return n
 }
 
 function formatUnit(unit: string, unitOther?: string): string {
@@ -49,10 +61,12 @@ export default async function TransfersPage({
     from: parseDate(sp.from, defaultFrom),
     to: parseDate(sp.to, defaultTo),
   }
+  const moneyPage = parsePage(sp.moneyPage)
+  const materialPage = parsePage(sp.materialPage)
 
-  const [moneyRows, materialRows, projects, catalog] = await Promise.all([
-    listMoneyTransfers(range),
-    listMaterialTransfers(range),
+  const [moneyResult, materialResult, projects, catalog] = await Promise.all([
+    listMoneyTransfers(range, moneyPage, TRANSFERS_PAGE_SIZE),
+    listMaterialTransfers(range, materialPage, TRANSFERS_PAGE_SIZE),
     listProjects(),
     listCatalog(),
   ])
@@ -85,7 +99,13 @@ export default async function TransfersPage({
           <div className="flex justify-end">
             <MoneyTransferButton projects={projectOptions} />
           </div>
-          <MoneyTransfersTable rows={moneyRows} />
+          <MoneyTransfersTable
+            rows={moneyResult.rows}
+            page={moneyPage}
+            pageSize={TRANSFERS_PAGE_SIZE}
+            total={moneyResult.total}
+            searchParams={sp}
+          />
         </TabsContent>
         <TabsContent value="material" className="flex flex-col gap-3">
           <div className="flex justify-end">
@@ -94,7 +114,13 @@ export default async function TransfersPage({
               materials={materialOptions}
             />
           </div>
-          <MaterialTransfersTable rows={materialRows} />
+          <MaterialTransfersTable
+            rows={materialResult.rows}
+            page={materialPage}
+            pageSize={TRANSFERS_PAGE_SIZE}
+            total={materialResult.total}
+            searchParams={sp}
+          />
         </TabsContent>
       </Tabs>
     </div>

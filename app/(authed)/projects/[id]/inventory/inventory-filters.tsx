@@ -26,6 +26,7 @@ export function InventoryFilters() {
 
   function setParam(key: "type" | "status", value: string) {
     const next = new URLSearchParams(sp.toString())
+    next.delete("unitsPage")
     next.set(key, value)
     startTransition(() => {
       router.replace(`?${next.toString()}`, { scroll: false })

@@ -7,6 +7,7 @@ import type {
   UnitStatus,
   ProjectStatus,
 } from "./schemas"
+import type { Paginated } from "@/lib/transactions/repository"
 import {
   generateApartmentNumbers,
   generateParkingNumbers,
@@ -43,17 +44,21 @@ export type UnitFilters = {
 
 export async function listUnitsForProject(
   projectId: ObjectId,
-  filters: UnitFilters
-): Promise<Unit[]> {
+  filters: UnitFilters,
+  page: number,
+  pageSize: number,
+): Promise<Paginated<Unit>> {
   const db = getDb()
   const query: Record<string, unknown> = { projectId }
   if (filters.types.length > 0) query.type = { $in: filters.types }
   if (filters.statuses.length > 0) query.status = { $in: filters.statuses }
-  return db
-    .collection<Unit>("units")
-    .find(query)
-    .sort({ floor: 1, number: 1 })
-    .toArray()
+  const skip = (page - 1) * pageSize
+  const coll = db.collection<Unit>("units")
+  const [rows, total] = await Promise.all([
+    coll.find(query).sort({ floor: 1, number: 1 }).skip(skip).limit(pageSize).toArray(),
+    coll.countDocuments(query),
+  ])
+  return { rows, total }
 }
 
 export async function createProjectWithUnits(

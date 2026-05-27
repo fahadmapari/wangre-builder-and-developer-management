@@ -20,6 +20,10 @@ export function FinancialsView({
   linkedMaterials,
   search,
   ledgerExportHref,
+  page,
+  pageSize,
+  total,
+  currentSearchParams,
 }: {
   projectId: string
   rows: Transaction[]
@@ -34,7 +38,19 @@ export function FinancialsView({
   >
   search?: string
   ledgerExportHref: string
+  page: number
+  pageSize: number
+  total: number
+  currentSearchParams: Record<string, string | string[] | undefined>
 }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const entriesLine =
+    total === 0
+      ? "No entries in this window."
+      : total <= pageSize
+        ? `${total} entr${total === 1 ? "y" : "ies"} in this window.`
+        : `Showing ${rows.length} of ${total} entries.`
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -63,9 +79,7 @@ export function FinancialsView({
         />
       </div>
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {rows.length} entr{rows.length === 1 ? "y" : "ies"} in this window.
-        </p>
+        <p className="text-sm text-muted-foreground">{entriesLine}</p>
         <div className="flex gap-2">
           <AddIncomeButton projectId={projectId} />
           <AddExpenseButton projectId={projectId} />
@@ -98,7 +112,58 @@ export function FinancialsView({
           linkedMaterials={linkedMaterials}
         />
       )}
+      <Pagination
+        current={page}
+        totalPages={totalPages}
+        searchParams={currentSearchParams}
+      />
     </div>
+  )
+}
+
+function Pagination({
+  current,
+  totalPages,
+  searchParams,
+}: {
+  current: number
+  totalPages: number
+  searchParams: Record<string, string | string[] | undefined>
+}) {
+  if (totalPages <= 1) return null
+  const base = new URLSearchParams()
+  for (const [k, v] of Object.entries(searchParams)) {
+    if (k === "page") continue
+    if (typeof v === "string") base.set(k, v)
+  }
+  const hrefFor = (p: number) => {
+    const q = new URLSearchParams(base)
+    q.set("page", String(p))
+    return `?${q.toString()}`
+  }
+  return (
+    <nav className="flex items-center gap-3 text-sm">
+      <PaginationLink href={hrefFor(current - 1)} disabled={current <= 1} label="← Prev" />
+      <span className="text-muted-foreground">
+        Page {current} of {totalPages}
+      </span>
+      <PaginationLink
+        href={hrefFor(current + 1)}
+        disabled={current >= totalPages}
+        label="Next →"
+      />
+    </nav>
+  )
+}
+
+function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
+  if (disabled) {
+    return <span className="text-muted-foreground">{label}</span>
+  }
+  return (
+    <a className="text-primary hover:underline" href={href}>
+      {label}
+    </a>
   )
 }
 

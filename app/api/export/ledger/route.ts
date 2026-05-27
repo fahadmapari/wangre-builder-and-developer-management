@@ -85,7 +85,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "project not found" }, { status: 404 })
   }
 
-  const rows = await listLedger(projectId, filters)
+  const { rows } = await listLedger(projectId, filters, 1, 1_000_000)
 
   const csv = toCsvFile(
     [...LEDGER_CSV_HEADERS],

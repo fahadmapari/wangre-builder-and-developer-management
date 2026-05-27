@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { VoidConfirmDialog } from "./void-confirm-dialog"
 import { ReverseConfirmDialog } from "./reverse-confirm-dialog"
-import { HistorySheet } from "@/app/(authed)/components/history-sheet"
 
 export type RowActionsContext = {
   transactionId: string
@@ -52,15 +51,6 @@ export function RowActionsMenu(ctx: RowActionsContext) {
 
   return (
     <div className="flex items-center justify-end gap-1">
-      <HistorySheet
-        entityType="transaction"
-        entityId={ctx.transactionId}
-        trigger={
-          <Button variant="ghost" size="sm">
-            History
-          </Button>
-        }
-      />
       {canVoid || canReverse ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
