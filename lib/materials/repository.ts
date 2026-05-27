@@ -765,6 +765,15 @@ export class InsufficientStockForReversalError extends Error {
   }
 }
 
+/**
+ * List material transfers across all projects within a date range, paginated.
+ *
+ * Same shape as listMoneyTransfers but on the materialMovements collection.
+ * One row per transferGroupId; status reflects whether the group has any
+ * reversal legs. Date range matches against any original leg's occurredAt.
+ *
+ * Results are paginated at the aggregation level for performance.
+ */
 export async function listMaterialTransfers(
   range: { from: Date; to: Date },
   page: number,
