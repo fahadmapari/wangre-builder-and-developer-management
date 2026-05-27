@@ -1,5 +1,4 @@
 import { ObjectId } from "mongodb"
-import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import {
   listUnitsForProject,
@@ -7,18 +6,7 @@ import {
 } from "@/lib/projects/repository"
 import type { UnitStatus, UnitType } from "@/lib/projects/schemas"
 import type { Role } from "@/types"
-import { MarkSoldButton } from "./mark-sold-dialog"
-import { UnmarkButton } from "./unmark-confirm-dialog"
-
-const INR = new Intl.NumberFormat("en-IN")
-
-function formatRupees(n: number): string {
-  return `₹${INR.format(n)}`
-}
-
-function formatDate(d?: Date): string {
-  return d ? d.toLocaleDateString() : ""
-}
+import { UnitRow } from "./unit-row"
 
 export type InventoryFilterParams = {
   type?: string
@@ -93,39 +81,21 @@ export async function InventoryTable({
           </thead>
           <tbody>
             {units.map((u) => (
-              <tr key={String(u._id)} className="border-b border-border last:border-0">
-                <td className="px-4 py-3 font-mono">{u.number}</td>
-                <td className="px-4 py-3 capitalize">{u.type}</td>
-                <td className="px-4 py-3 font-mono">{u.floor}</td>
-                <td className="px-4 py-3">
-                  <Badge variant={u.status === "sold" ? "default" : "secondary"}>
-                    {u.status === "sold" ? "Sold" : "Available"}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3">{u.buyerName ?? ""}</td>
-                <td className="px-4 py-3 font-mono">
-                  {u.soldPriceTotal ? formatRupees(u.soldPriceTotal) : ""}
-                </td>
-                <td className="px-4 py-3">{formatDate(u.soldAt)}</td>
-                {showActions ? (
-                  <td className="px-4 py-3 text-right">
-                    {u.status === "available" ? (
-                      <MarkSoldButton
-                        projectId={projectId}
-                        unitId={String(u._id)}
-                        unitType={u.type}
-                        unitNumber={u.number}
-                      />
-                    ) : (
-                      <UnmarkButton
-                        unitId={String(u._id)}
-                        unitType={u.type}
-                        unitNumber={u.number}
-                      />
-                    )}
-                  </td>
-                ) : null}
-              </tr>
+              <UnitRow
+                key={String(u._id)}
+                unit={{
+                  _id: String(u._id),
+                  number: u.number,
+                  type: u.type,
+                  floor: u.floor ?? null,
+                  status: u.status,
+                  buyerName: u.buyerName ?? null,
+                  soldPriceTotal: u.soldPriceTotal ?? null,
+                  soldAt: u.soldAt ? u.soldAt.toISOString() : null,
+                }}
+                projectId={projectId}
+                role={role}
+              />
             ))}
           </tbody>
         </table>
