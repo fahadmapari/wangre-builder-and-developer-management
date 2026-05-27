@@ -61,8 +61,6 @@ export function MovementsSheetButton({
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setRows(null)
-    setError(null)
     fetch(
       `/api/movements?projectId=${projectId}&materialId=${materialId}&page=${page}&pageSize=${PAGE_SIZE}`,
       { cache: "no-store" },
