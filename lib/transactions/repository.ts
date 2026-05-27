@@ -218,31 +218,61 @@ function endOfDay(d: Date): Date {
 }
 
 /**
- * Returns the filtered ledger for a single project. Newest first.
+ * Returns the filtered ledger for a single project, paginated. Newest first.
+ * Page is 1-based. Out-of-range pages return { rows: [], total }.
  */
 export async function listLedger(
   projectId: ObjectId,
-  filters: LedgerFilters
-): Promise<Transaction[]> {
+  filters: LedgerFilters,
+  page: number,
+  pageSize: number,
+): Promise<Paginated<Transaction>> {
   const db = getDb()
   const coll = db.collection<Transaction>("transactions")
   const match = { ...buildLedgerMatch(filters), projectId }
   const searchStage = buildSearchStage(filters.search)
+  const skip = (page - 1) * pageSize
 
   if (searchStage) {
-    return coll
-      .aggregate<Transaction>([
+    type FacetResult = {
+      rows: Transaction[]
+      total: { n: number }[]
+    }
+    const result = await coll
+      .aggregate<FacetResult>([
         searchStage,
         { $match: match },
         { $sort: { occurredAt: -1, _id: -1 } },
+        {
+          $facet: {
+            rows: [{ $skip: skip }, { $limit: pageSize }],
+            total: [{ $count: "n" }],
+          },
+        },
       ])
       .toArray()
+    const facet = result[0]
+    return {
+      rows: facet?.rows ?? [],
+      total: facet?.total[0]?.n ?? 0,
+    }
   }
 
-  return coll
-    .find(match)
-    .sort({ occurredAt: -1, _id: -1 })
-    .toArray()
+  const [rows, total] = await Promise.all([
+    coll
+      .find(match)
+      .sort({ occurredAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .toArray(),
+    coll.countDocuments(match),
+  ])
+  return { rows, total }
+}
+
+export type Paginated<T> = {
+  rows: T[]
+  total: number
 }
 
 export type FinancialTotals = {
