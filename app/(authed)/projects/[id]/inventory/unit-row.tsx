@@ -2,9 +2,11 @@
 
 import { useState, type MouseEvent } from "react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { DrilldownSheet } from "@/app/(authed)/components/drilldown-sheet"
 import { MarkSoldButton } from "./mark-sold-dialog"
 import { UnmarkButton } from "./unmark-confirm-dialog"
+import { EditUnitDialog } from "./edit-unit-dialog"
 import type { Role } from "@/types"
 
 const INR = new Intl.NumberFormat("en-IN")
@@ -19,6 +21,9 @@ export function UnitRow({
     number: string
     type: "apartment" | "parking"
     floor: number | null
+    areaSqft: number
+    salePrice: number
+    notes: string | null
     status: "available" | "sold"
     buyerName: string | null
     soldPriceTotal: number | null
@@ -28,6 +33,7 @@ export function UnitRow({
   role: Role
 }) {
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const showActions = role === "admin"
   function onActionsClick(e: MouseEvent<HTMLTableCellElement>) {
     e.stopPropagation()
@@ -55,20 +61,45 @@ export function UnitRow({
         </td>
         {showActions ? (
           <td className="px-4 py-3 text-right" onClick={onActionsClick}>
-            {unit.status === "available" ? (
-              <MarkSoldButton
-                projectId={projectId}
-                unitId={unit._id}
-                unitType={unit.type}
-                unitNumber={unit.number}
-              />
-            ) : (
-              <UnmarkButton
-                unitId={unit._id}
-                unitType={unit.type}
-                unitNumber={unit.number}
-              />
-            )}
+            <div className="flex items-center justify-end gap-2">
+              {unit.status === "available" ? (
+                <MarkSoldButton
+                  projectId={projectId}
+                  unitId={unit._id}
+                  unitType={unit.type}
+                  unitNumber={unit.number}
+                />
+              ) : (
+                <UnmarkButton
+                  unitId={unit._id}
+                  unitType={unit.type}
+                  unitNumber={unit.number}
+                />
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditOpen(true)
+                }}
+              >
+                Edit
+              </Button>
+            </div>
+            <EditUnitDialog
+              unitId={unit._id}
+              open={editOpen}
+              onOpenChange={setEditOpen}
+              current={{
+                number: unit.number,
+                floor: unit.floor ?? 0,
+                areaSqft: unit.areaSqft,
+                salePrice: unit.salePrice,
+                notes: unit.notes ?? undefined,
+                status: unit.status,
+              }}
+            />
           </td>
         ) : null}
       </tr>
