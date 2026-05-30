@@ -166,7 +166,10 @@ async function fetchProjectEvents(filters: AuditFilters): Promise<RawEvent[]> {
   const db = getDb()
   const to = endOfDay(filters.to)
   const baseQuery: Record<string, unknown> = {
-    createdAt: { $gte: filters.from, $lte: to },
+    $or: [
+      { createdAt: { $gte: filters.from, $lte: to } },
+      { lastUpdatedAt: { $gte: filters.from, $lte: to } },
+    ],
   }
   if (filters.projectId) baseQuery._id = filters.projectId
   const rows = await db
@@ -175,27 +178,55 @@ async function fetchProjectEvents(filters: AuditFilters): Promise<RawEvent[]> {
       name: string
       createdBy: ObjectId
       createdAt: Date
+      lastUpdatedBy?: ObjectId
+      lastUpdatedAt?: Date
     }>("projects")
     .find(baseQuery)
     .toArray()
-  return rows.map((r) => ({
-    id: `project:${r._id.toHexString()}:created`,
-    occurredAt: r.createdAt,
-    actorId: r.createdBy,
-    action: "created" as AuditAction,
-    entityType: "project" as AuditEntityType,
-    entityId: r._id,
-    projectId: r._id,
-    summary: `Created project: ${r.name}`,
-    refUrl: `/projects/${r._id.toHexString()}`,
-  }))
+  const out: RawEvent[] = []
+  for (const r of rows) {
+    if (inRange(r.createdAt, filters.from, to)) {
+      out.push({
+        id: `project:${r._id.toHexString()}:created`,
+        occurredAt: r.createdAt,
+        actorId: r.createdBy,
+        action: "created" as AuditAction,
+        entityType: "project" as AuditEntityType,
+        entityId: r._id,
+        projectId: r._id,
+        summary: `Created project: ${r.name}`,
+        refUrl: `/projects/${r._id.toHexString()}`,
+      })
+    }
+    if (
+      r.lastUpdatedBy &&
+      r.lastUpdatedAt &&
+      inRange(r.lastUpdatedAt, filters.from, to)
+    ) {
+      out.push({
+        id: `project:${r._id.toHexString()}:updated`,
+        occurredAt: r.lastUpdatedAt,
+        actorId: r.lastUpdatedBy,
+        action: "updated" as AuditAction,
+        entityType: "project" as AuditEntityType,
+        entityId: r._id,
+        projectId: r._id,
+        summary: `Updated project: ${r.name}`,
+        refUrl: `/projects/${r._id.toHexString()}`,
+      })
+    }
+  }
+  return out
 }
 
 async function fetchUnitEvents(filters: AuditFilters): Promise<RawEvent[]> {
   const db = getDb()
   const to = endOfDay(filters.to)
   const baseQuery: Record<string, unknown> = {
-    createdAt: { $gte: filters.from, $lte: to },
+    $or: [
+      { createdAt: { $gte: filters.from, $lte: to } },
+      { lastUpdatedAt: { $gte: filters.from, $lte: to } },
+    ],
   }
   if (filters.projectId) baseQuery.projectId = filters.projectId
   const rows = await db
@@ -206,20 +237,45 @@ async function fetchUnitEvents(filters: AuditFilters): Promise<RawEvent[]> {
       number: string
       createdBy: ObjectId
       createdAt: Date
+      lastUpdatedBy?: ObjectId
+      lastUpdatedAt?: Date
     }>("units")
     .find(baseQuery)
     .toArray()
-  return rows.map((r) => ({
-    id: `unit:${r._id.toHexString()}:created`,
-    occurredAt: r.createdAt,
-    actorId: r.createdBy,
-    action: "created" as AuditAction,
-    entityType: "unit" as AuditEntityType,
-    entityId: r._id,
-    projectId: r.projectId,
-    summary: `Created ${r.type}: ${r.number}`,
-    refUrl: `/projects/${r.projectId.toHexString()}`,
-  }))
+  const out: RawEvent[] = []
+  for (const r of rows) {
+    if (inRange(r.createdAt, filters.from, to)) {
+      out.push({
+        id: `unit:${r._id.toHexString()}:created`,
+        occurredAt: r.createdAt,
+        actorId: r.createdBy,
+        action: "created" as AuditAction,
+        entityType: "unit" as AuditEntityType,
+        entityId: r._id,
+        projectId: r.projectId,
+        summary: `Created ${r.type}: ${r.number}`,
+        refUrl: `/projects/${r.projectId.toHexString()}`,
+      })
+    }
+    if (
+      r.lastUpdatedBy &&
+      r.lastUpdatedAt &&
+      inRange(r.lastUpdatedAt, filters.from, to)
+    ) {
+      out.push({
+        id: `unit:${r._id.toHexString()}:updated`,
+        occurredAt: r.lastUpdatedAt,
+        actorId: r.lastUpdatedBy,
+        action: "updated" as AuditAction,
+        entityType: "unit" as AuditEntityType,
+        entityId: r._id,
+        projectId: r.projectId,
+        summary: `Updated ${r.type}: ${r.number}`,
+        refUrl: `/projects/${r.projectId.toHexString()}`,
+      })
+    }
+  }
+  return out
 }
 
 async function fetchMaterialEvents(filters: AuditFilters): Promise<RawEvent[]> {
@@ -234,18 +290,46 @@ async function fetchMaterialEvents(filters: AuditFilters): Promise<RawEvent[]> {
       name: string
       createdBy: ObjectId
       createdAt: Date
+      lastUpdatedBy?: ObjectId
+      lastUpdatedAt?: Date
     }>("materials")
-    .find({ createdAt: { $gte: filters.from, $lte: to } })
+    .find({
+      $or: [
+        { createdAt: { $gte: filters.from, $lte: to } },
+        { lastUpdatedAt: { $gte: filters.from, $lte: to } },
+      ],
+    })
     .toArray()
-  return rows.map((r) => ({
-    id: `material:${r._id.toHexString()}:created`,
-    occurredAt: r.createdAt,
-    actorId: r.createdBy,
-    action: "created" as AuditAction,
-    entityType: "material" as AuditEntityType,
-    entityId: r._id,
-    summary: `Added material to catalog: ${r.name}`,
-  }))
+  const out: RawEvent[] = []
+  for (const r of rows) {
+    if (inRange(r.createdAt, filters.from, to)) {
+      out.push({
+        id: `material:${r._id.toHexString()}:created`,
+        occurredAt: r.createdAt,
+        actorId: r.createdBy,
+        action: "created" as AuditAction,
+        entityType: "material" as AuditEntityType,
+        entityId: r._id,
+        summary: `Added material to catalog: ${r.name}`,
+      })
+    }
+    if (
+      r.lastUpdatedBy &&
+      r.lastUpdatedAt &&
+      inRange(r.lastUpdatedAt, filters.from, to)
+    ) {
+      out.push({
+        id: `material:${r._id.toHexString()}:updated`,
+        occurredAt: r.lastUpdatedAt,
+        actorId: r.lastUpdatedBy,
+        action: "updated" as AuditAction,
+        entityType: "material" as AuditEntityType,
+        entityId: r._id,
+        summary: `Updated material in catalog: ${r.name}`,
+      })
+    }
+  }
+  return out
 }
 
 // ──────────────────────────────────────────────────────────────────────────
