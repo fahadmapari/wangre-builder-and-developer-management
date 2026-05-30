@@ -94,6 +94,10 @@ export type UnitDrilldown = {
   soldPriceTotal: number | null
   buyerName: string | null
   soldAt: Date | null
+  lastUpdatedBy?: {
+    actorName: string
+    at: Date
+  } | null
 }
 
 export type MoneyTransferDrilldown = {

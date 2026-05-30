@@ -1,7 +1,7 @@
 import { z } from "zod"
 import type { ObjectId } from "mongodb"
 
-export const AuditActionSchema = z.enum(["created", "voided", "reversed"])
+export const AuditActionSchema = z.enum(["created", "voided", "reversed", "updated"])
 export type AuditAction = z.infer<typeof AuditActionSchema>
 
 export const AuditEntityTypeSchema = z.enum([

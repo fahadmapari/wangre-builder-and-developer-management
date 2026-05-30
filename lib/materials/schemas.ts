@@ -143,6 +143,8 @@ export type Material = {
   unitOther?: string
   unitPrice: number | null
   notes?: string
+  lastUpdatedBy?: ObjectId
+  lastUpdatedAt?: Date
   createdBy: ObjectId
   createdAt: Date
   updatedAt: Date
