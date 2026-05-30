@@ -268,6 +268,21 @@ export async function fetchDrilldownDetail(
         const user = await requireAuth()
         const u = await db.collection<Unit>("units").findOne({ _id: oid })
         if (!u) return { ok: false, error: "Unit not found." }
+
+        let lastUpdatedBy: { actorName: string; at: Date } | null = null
+        if (u.lastUpdatedBy && u.lastUpdatedAt) {
+          const updatedByUser = await db
+            .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+            .findOne(
+              { _id: u.lastUpdatedBy },
+              { projection: { name: 1, email: 1 } }
+            )
+          lastUpdatedBy = {
+            actorName: updatedByUser?.name ?? updatedByUser?.email ?? "(unknown)",
+            at: u.lastUpdatedAt,
+          }
+        }
+
         return {
           ok: true,
           data: {
@@ -280,6 +295,7 @@ export async function fetchDrilldownDetail(
               user.role === "admin" ? (u.soldPriceTotal ?? null) : null,
             buyerName: u.buyerName ?? null,
             soldAt: u.soldAt ?? null,
+            lastUpdatedBy,
           },
         }
       }
