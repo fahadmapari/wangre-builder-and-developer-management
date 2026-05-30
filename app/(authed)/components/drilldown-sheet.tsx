@@ -11,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { fetchDrilldownDetail } from "@/lib/drilldown/actions"
+import { LastUpdatedLine } from "../catalog/material-meta-line"
 import type {
   DrilldownDetail,
   DrilldownEntityType,
@@ -327,17 +328,25 @@ function DrilldownDetailView({ data }: { data: DrilldownDetail }) {
       )
     case "unit":
       return (
-        <DetailGrid>
-          <Row label="Type" value={data.type === "apartment" ? "Apartment" : "Parking"} />
-          <Row label="Number" value={data.number} />
-          {data.floor != null ? <Row label="Floor" value={String(data.floor)} /> : null}
-          <Row label="Status" value={data.status === "sold" ? "Sold" : "Available"} />
-          {data.soldPriceTotal != null ? (
-            <Row label="Sold price" value={`₹${INR.format(data.soldPriceTotal)}`} />
-          ) : null}
-          {data.buyerName ? <Row label="Buyer" value={data.buyerName} /> : null}
-          {data.soldAt ? <Row label="Sold on" value={fmtDate(data.soldAt)} /> : null}
-        </DetailGrid>
+        <div className="flex flex-col gap-3">
+          <DetailGrid>
+            <Row label="Type" value={data.type === "apartment" ? "Apartment" : "Parking"} />
+            <Row label="Number" value={data.number} />
+            {data.floor != null ? <Row label="Floor" value={String(data.floor)} /> : null}
+            <Row label="Status" value={data.status === "sold" ? "Sold" : "Available"} />
+            {data.soldPriceTotal != null ? (
+              <Row label="Sold price" value={`₹${INR.format(data.soldPriceTotal)}`} />
+            ) : null}
+            {data.buyerName ? <Row label="Buyer" value={data.buyerName} /> : null}
+            {data.soldAt ? <Row label="Sold on" value={fmtDate(data.soldAt)} /> : null}
+          </DetailGrid>
+          {data.lastUpdatedBy && (
+            <LastUpdatedLine
+              actorName={data.lastUpdatedBy.actorName}
+              at={data.lastUpdatedBy.at}
+            />
+          )}
+        </div>
       )
     case "money_transfer":
       return (

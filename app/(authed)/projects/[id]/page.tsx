@@ -21,6 +21,7 @@ import {
 } from "@/lib/transactions/filters"
 import { getDb } from "@/lib/db/client"
 import { Badge } from "@/components/ui/badge"
+import { LastUpdatedLine } from "../../catalog/material-meta-line"
 import { EditProjectDialog } from "./edit-project-dialog"
 import { ExpandCapacityDialog } from "./expand-capacity-dialog"
 import { ProjectTabs } from "./project-tabs"
@@ -165,6 +166,18 @@ export default async function ProjectDetailPage({
     ])
   if (!project) notFound()
 
+  // Look up the last-updater's display name for the project header.
+  let updaterName: string | null = null
+  if (project.lastUpdatedBy) {
+    const u = await getDb()
+      .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+      .findOne(
+        { _id: project.lastUpdatedBy },
+        { projection: { name: 1, email: 1 } }
+      )
+    updaterName = u?.name ?? u?.email ?? "(unknown)"
+  }
+
   const ledgerRows = ledgerResult.rows
   const ledgerTotal = ledgerResult.total
 
@@ -245,6 +258,9 @@ export default async function ProjectDetailPage({
               {project.name}
             </h1>
             <p className="text-sm text-muted-foreground">{project.location}</p>
+            {updaterName && project.lastUpdatedAt && (
+              <LastUpdatedLine actorName={updaterName} at={project.lastUpdatedAt} />
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">
