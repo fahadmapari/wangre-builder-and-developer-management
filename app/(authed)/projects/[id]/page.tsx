@@ -21,6 +21,9 @@ import {
 } from "@/lib/transactions/filters"
 import { getDb } from "@/lib/db/client"
 import { Badge } from "@/components/ui/badge"
+import { LastUpdatedLine } from "../../catalog/material-meta-line"
+import { EditProjectDialog } from "./edit-project-dialog"
+import { ExpandCapacityDialog } from "./expand-capacity-dialog"
 import { ProjectTabs } from "./project-tabs"
 import { InventoryFilters } from "./inventory/inventory-filters"
 import {
@@ -163,6 +166,18 @@ export default async function ProjectDetailPage({
     ])
   if (!project) notFound()
 
+  // Look up the last-updater's display name for the project header.
+  let updaterName: string | null = null
+  if (project.lastUpdatedBy) {
+    const u = await getDb()
+      .collection<{ _id: ObjectId; name?: string; email?: string }>("users")
+      .findOne(
+        { _id: project.lastUpdatedBy },
+        { projection: { name: 1, email: 1 } }
+      )
+    updaterName = u?.name ?? u?.email ?? "(unknown)"
+  }
+
   const ledgerRows = ledgerResult.rows
   const ledgerTotal = ledgerResult.total
 
@@ -243,10 +258,38 @@ export default async function ProjectDetailPage({
               {project.name}
             </h1>
             <p className="text-sm text-muted-foreground">{project.location}</p>
+            {updaterName && project.lastUpdatedAt && (
+              <LastUpdatedLine actorName={updaterName} at={project.lastUpdatedAt} />
+            )}
           </div>
-          <Badge variant="secondary">
-            {STATUS_LABEL[project.status] ?? project.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">
+              {STATUS_LABEL[project.status] ?? project.status}
+            </Badge>
+            {isAdmin && (
+              <div className="flex gap-2">
+                <EditProjectDialog
+                  projectId={project._id.toHexString()}
+                  current={{
+                    name: project.name,
+                    location: project.location,
+                    status: project.status,
+                    notes: project.notes,
+                  }}
+                />
+                <ExpandCapacityDialog
+                  projectId={project._id.toHexString()}
+                  current={{
+                    totalUnits: project.totalUnits,
+                    totalParkings: project.totalParkings,
+                    startingUnitNumber: project.startingUnitNumber,
+                    unitsPerFloor: project.unitsPerFloor,
+                    parkingPrefix: project.parkingPrefix,
+                  }}
+                />
+              </div>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Tile label="Total apartments" value={String(project.totalUnits)} />

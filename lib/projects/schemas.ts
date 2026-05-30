@@ -76,6 +76,13 @@ export type Project = {
   totalUnits: number
   totalParkings: number
   notes?: string
+  // Numbering params, now persisted (consumed at create + reused by expand-capacity)
+  startingUnitNumber?: number
+  unitsPerFloor?: number
+  parkingPrefix?: string
+  // Edit tracking — present after first post-Phase-10 edit
+  lastUpdatedBy?: ObjectId
+  lastUpdatedAt?: Date
   createdBy: ObjectId
   createdAt: Date
   updatedAt: Date
@@ -97,10 +104,43 @@ export type Unit = {
   soldPriceTotal?: number
   buyerName?: string
   notes?: string
+  lastUpdatedBy?: ObjectId
+  lastUpdatedAt?: Date
   createdBy: ObjectId
   createdAt: Date
   updatedAt: Date
 }
+
+export const UpdateProjectInputSchema = z.object({
+  projectId: z.string().min(1, "Missing project"),
+  name: z.string().trim().min(1).max(120).optional(),
+  location: z.string().trim().min(1).max(200).optional(),
+  status: ProjectStatusSchema.optional(),
+  notes: z.string().max(2000).optional(),
+})
+export type UpdateProjectInput = z.infer<typeof UpdateProjectInputSchema>
+
+export const ExpandProjectCapacityInputSchema = z
+  .object({
+    projectId: z.string().min(1, "Missing project"),
+    additionalUnits: z.coerce.number().int().min(0).max(2000).default(0),
+    additionalParkings: z.coerce.number().int().min(0).max(2000).default(0),
+  })
+  .refine((v) => v.additionalUnits + v.additionalParkings > 0, {
+    message: "Specify at least one count to add",
+    path: ["additionalUnits"],
+  })
+export type ExpandProjectCapacityInput = z.infer<typeof ExpandProjectCapacityInputSchema>
+
+export const EditUnitInputSchema = z.object({
+  unitId: z.string().min(1, "Missing unit"),
+  number: z.string().trim().min(1).max(20).optional(),
+  floor: z.coerce.number().int().min(0).max(99).optional(),
+  areaSqft: z.coerce.number().positive().max(100_000).optional(),
+  salePrice: z.coerce.number().min(0).max(1_000_000_000).optional(),
+  notes: z.string().max(2000).optional(),
+})
+export type EditUnitInput = z.infer<typeof EditUnitInputSchema>
 
 export type ActionResult<T = void> =
   | { ok: true; data: T }

@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card"
 import type { Material } from "@/lib/materials/schemas"
 import { EditMaterialButton } from "./edit-material-dialog"
+import { LastUpdatedLine } from "./material-meta-line"
 
 const INR = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 0 })
 
@@ -16,7 +17,13 @@ function formatPrice(m: Material): string {
   return `₹${INR.format(m.unitPrice)}`
 }
 
-export function CatalogTable({ materials }: { materials: Material[] }) {
+export function CatalogTable({
+  materials,
+  updaterById,
+}: {
+  materials: Material[]
+  updaterById: Record<string, string>
+}) {
   if (materials.length === 0) {
     return (
       <Card className="grid place-items-center p-12 text-sm text-muted-foreground">
@@ -40,7 +47,17 @@ export function CatalogTable({ materials }: { materials: Material[] }) {
         <tbody>
           {materials.map((m) => (
             <tr key={String(m._id)} className="border-b border-border last:border-0">
-              <td className="px-4 py-3">{m.name}</td>
+              <td className="px-4 py-3">
+                <div>{m.name}</div>
+                {m.lastUpdatedBy && m.lastUpdatedAt && (
+                  <LastUpdatedLine
+                    actorName={
+                      updaterById[m.lastUpdatedBy.toHexString()] ?? "(unknown)"
+                    }
+                    at={m.lastUpdatedAt}
+                  />
+                )}
+              </td>
               <td className="px-4 py-3 font-mono">{formatUnit(m)}</td>
               <td className="px-4 py-3 font-mono">{formatPrice(m)}</td>
               <td className="px-4 py-3 max-w-xs truncate text-muted-foreground">
