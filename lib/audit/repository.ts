@@ -13,7 +13,20 @@ import type {
 // bulk denormalization step in listAuditEvents.
 // ──────────────────────────────────────────────────────────────────────────
 
-type RawEvent = Omit<AuditEvent, "actorName" | "actorRole" | "projectName">
+// Internal pre-denormalization shape. Keeps ObjectId for actorId/entityId/
+// projectId because filtering, sorting and the actor/project lookups operate on
+// these before denormalize() converts them to hex strings for AuditEvent.
+type RawEvent = {
+  id: string
+  occurredAt: Date
+  actorId: ObjectId
+  action: AuditAction
+  entityType: AuditEntityType
+  entityId: ObjectId
+  projectId?: ObjectId
+  summary: string
+  refUrl?: string
+}
 
 function endOfDay(d: Date): Date {
   const out = new Date(d)
@@ -406,6 +419,9 @@ async function denormalize(raw: RawEvent[]): Promise<AuditEvent[]> {
       u?.role === "admin" ? "admin" : "floor_manager"
     return {
       ...e,
+      actorId: e.actorId.toHexString(),
+      entityId: e.entityId.toHexString(),
+      projectId: e.projectId?.toHexString(),
       actorName,
       actorRole,
       projectName: e.projectId

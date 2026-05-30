@@ -26,9 +26,15 @@ export default async function AuthedLayout({
           </Link>
           <Separator orientation="vertical" className="h-5" />
           <Badge variant={roleVariant}>{roleLabel}</Badge>
+          <Separator orientation="vertical" className="h-5" />
+          <Link
+            href="/"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Projects
+          </Link>
           {isAdmin ? (
             <>
-              <Separator orientation="vertical" className="h-5" />
               <Link
                 href="/catalog"
                 className="text-sm text-muted-foreground hover:text-foreground"
