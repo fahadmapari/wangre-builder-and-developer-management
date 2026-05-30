@@ -114,27 +114,33 @@ export async function expandProjectCapacity(
 
   const session = client.startSession()
   try {
-    let outcome: ActionResult<void> = { ok: true, data: undefined }
+    // Sentinel error used to abort the transaction on validation failure so we
+    // don't commit an empty-but-non-zero-overhead transaction, and so future
+    // writes added above the guard can't accidentally commit alongside an
+    // error outcome.
+    class ExpandValidationError extends Error {
+      constructor(public outcome: ActionResult<void>) {
+        super("validation")
+      }
+    }
     await session.withTransaction(async () => {
       const db = client.db()
       const project = await db
         .collection("projects")
         .findOne({ _id: projectId }, { session })
       if (!project) {
-        outcome = { ok: false, error: "Project not found" }
-        return
+        throw new ExpandValidationError({ ok: false, error: "Project not found" })
       }
       if (
         project.startingUnitNumber === undefined ||
         project.unitsPerFloor === undefined ||
         project.parkingPrefix === undefined
       ) {
-        outcome = {
+        throw new ExpandValidationError({
           ok: false,
           error:
             "Project is missing numbering params. Run scripts/migrate-phase-10.mjs first.",
-        }
-        return
+        })
       }
 
       const now = new Date()
@@ -214,13 +220,17 @@ export async function expandProjectCapacity(
       )
     })
 
-    if (outcome.ok) {
-      revalidatePath(`/projects/${input.projectId}`)
-      revalidatePath(`/projects/${input.projectId}/inventory`)
-      revalidatePath("/audit")
-    }
-    return outcome
+    revalidatePath(`/projects/${input.projectId}`)
+    revalidatePath(`/projects/${input.projectId}/inventory`)
+    revalidatePath("/projects")
+    revalidatePath("/audit")
+    return { ok: true, data: undefined }
   } catch (e) {
+    if (e instanceof Error && e.message === "validation") {
+      // ExpandValidationError carries a structured outcome on `.outcome`.
+      const maybeOutcome = (e as Error & { outcome?: ActionResult<void> }).outcome
+      if (maybeOutcome) return maybeOutcome
+    }
     console.error("[expandProjectCapacity]", e)
     return { ok: false, error: "Failed to expand project capacity" }
   } finally {

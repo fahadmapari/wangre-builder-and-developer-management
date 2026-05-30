@@ -207,7 +207,11 @@ function HistoryTab({
           className="flex flex-col gap-1 rounded border border-border bg-card p-3"
         >
           <div className="flex items-center gap-2">
-            <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
+            {e.action === "updated" ? (
+              <Badge className="bg-amber-100 text-amber-800">{e.action}</Badge>
+            ) : (
+              <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
+            )}
             <span className="text-sm font-medium">{e.actorName}</span>
             <Badge variant="outline" className="text-xs">
               {e.actorRole === "admin" ? "admin" : "floor manager"}
