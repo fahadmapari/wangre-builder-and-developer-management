@@ -37,7 +37,7 @@ export function AuditTable({ events }: { events: AuditEvent[] }) {
               </td>
               <td className="px-3 py-2">
                 {e.action === "updated" ? (
-                  <Badge className="bg-amber-100 text-amber-800">Updated</Badge>
+                  <Badge className="bg-amber-100 text-amber-800">{e.action}</Badge>
                 ) : (
                   <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
                 )}
