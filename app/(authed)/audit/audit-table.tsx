@@ -36,7 +36,11 @@ export function AuditTable({ events }: { events: AuditEvent[] }) {
                 </Badge>
               </td>
               <td className="px-3 py-2">
-                <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
+                {e.action === "updated" ? (
+                  <Badge className="bg-amber-100 text-amber-800">Updated</Badge>
+                ) : (
+                  <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
+                )}
               </td>
               <td className="px-3 py-2">{e.entityType}</td>
               <td className="px-3 py-2">{e.summary}</td>

@@ -114,6 +114,7 @@ export function AuditFiltersForm({
           <SelectContent>
             <SelectItem value="all">All actions</SelectItem>
             <SelectItem value="created">Created</SelectItem>
+            <SelectItem value="updated">Updated</SelectItem>
             <SelectItem value="voided">Voided</SelectItem>
             <SelectItem value="reversed">Reversed</SelectItem>
           </SelectContent>

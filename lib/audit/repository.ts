@@ -488,9 +488,14 @@ export async function listEntityHistory(
     }
   } else if (entityType === "project") {
     const r = await db
-      .collection<{ _id: ObjectId; name: string; createdBy: ObjectId; createdAt: Date }>(
-        "projects"
-      )
+      .collection<{
+        _id: ObjectId
+        name: string
+        createdBy: ObjectId
+        createdAt: Date
+        lastUpdatedBy?: ObjectId
+        lastUpdatedAt?: Date
+      }>("projects")
       .findOne({ _id: entityId })
     if (r) {
       raw.push({
@@ -504,6 +509,19 @@ export async function listEntityHistory(
         summary: `Created project: ${r.name}`,
         refUrl: `/projects/${r._id.toHexString()}`,
       })
+      if (r.lastUpdatedBy && r.lastUpdatedAt) {
+        raw.push({
+          id: `project:${r._id.toHexString()}:updated`,
+          occurredAt: r.lastUpdatedAt,
+          actorId: r.lastUpdatedBy,
+          action: "updated",
+          entityType: "project",
+          entityId: r._id,
+          projectId: r._id,
+          summary: `Updated project: ${r.name}`,
+          refUrl: `/projects/${r._id.toHexString()}`,
+        })
+      }
     }
   } else if (entityType === "unit") {
     const r = await db
@@ -514,6 +532,8 @@ export async function listEntityHistory(
         number: string
         createdBy: ObjectId
         createdAt: Date
+        lastUpdatedBy?: ObjectId
+        lastUpdatedAt?: Date
       }>("units")
       .findOne({ _id: entityId })
     if (r) {
@@ -528,12 +548,30 @@ export async function listEntityHistory(
         summary: `Created ${r.type}: ${r.number}`,
         refUrl: `/projects/${r.projectId.toHexString()}`,
       })
+      if (r.lastUpdatedBy && r.lastUpdatedAt) {
+        raw.push({
+          id: `unit:${r._id.toHexString()}:updated`,
+          occurredAt: r.lastUpdatedAt,
+          actorId: r.lastUpdatedBy,
+          action: "updated",
+          entityType: "unit",
+          entityId: r._id,
+          projectId: r.projectId,
+          summary: `Updated ${r.type}: ${r.number}`,
+          refUrl: `/projects/${r.projectId.toHexString()}`,
+        })
+      }
     }
   } else if (entityType === "material") {
     const r = await db
-      .collection<{ _id: ObjectId; name: string; createdBy: ObjectId; createdAt: Date }>(
-        "materials"
-      )
+      .collection<{
+        _id: ObjectId
+        name: string
+        createdBy: ObjectId
+        createdAt: Date
+        lastUpdatedBy?: ObjectId
+        lastUpdatedAt?: Date
+      }>("materials")
       .findOne({ _id: entityId })
     if (r) {
       raw.push({
@@ -545,6 +583,17 @@ export async function listEntityHistory(
         entityId: r._id,
         summary: `Added material to catalog: ${r.name}`,
       })
+      if (r.lastUpdatedBy && r.lastUpdatedAt) {
+        raw.push({
+          id: `material:${r._id.toHexString()}:updated`,
+          occurredAt: r.lastUpdatedAt,
+          actorId: r.lastUpdatedBy,
+          action: "updated",
+          entityType: "material",
+          entityId: r._id,
+          summary: `Updated material in catalog: ${r.name}`,
+        })
+      }
     }
   }
 
