@@ -6,11 +6,16 @@ import { requireAdmin } from "@/lib/auth/session"
 import {
   CreateProjectInputSchema,
   UpdateProjectInputSchema,
+  ExpandProjectCapacityInputSchema,
   type ActionResult,
 } from "@/lib/projects/schemas"
 import { createProjectWithUnits } from "@/lib/projects/repository"
-import { getDb } from "@/lib/db/client"
+import client, { getDb } from "@/lib/db/client"
 import { withUpdateMeta } from "@/lib/audit/update-meta"
+import {
+  generateApartmentNumbers,
+  generateParkingNumbers,
+} from "@/lib/projects/generation"
 
 export async function createProject(
   raw: unknown
@@ -83,5 +88,142 @@ export async function updateProject(
   } catch (e) {
     console.error("[updateProject]", e)
     return { ok: false, error: "Failed to update project" }
+  }
+}
+
+export async function expandProjectCapacity(
+  raw: unknown
+): Promise<ActionResult<void>> {
+  const user = await requireAdmin()
+
+  const parsed = ExpandProjectCapacityInputSchema.safeParse(raw)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return {
+      ok: false,
+      error: issue?.message ?? "Invalid input",
+      field: issue?.path?.[0]?.toString(),
+    }
+  }
+  const input = parsed.data
+
+  if (!ObjectId.isValid(input.projectId)) {
+    return { ok: false, error: "Invalid project id" }
+  }
+  const projectId = new ObjectId(input.projectId)
+
+  const session = client.startSession()
+  try {
+    let outcome: ActionResult<void> = { ok: true, data: undefined }
+    await session.withTransaction(async () => {
+      const db = client.db()
+      const project = await db
+        .collection("projects")
+        .findOne({ _id: projectId }, { session })
+      if (!project) {
+        outcome = { ok: false, error: "Project not found" }
+        return
+      }
+      if (
+        project.startingUnitNumber === undefined ||
+        project.unitsPerFloor === undefined ||
+        project.parkingPrefix === undefined
+      ) {
+        outcome = {
+          ok: false,
+          error:
+            "Project is missing numbering params. Run scripts/migrate-phase-10.mjs first.",
+        }
+        return
+      }
+
+      const now = new Date()
+      const createdBy = new ObjectId(user.id)
+      const newUnitDocs: Record<string, unknown>[] = []
+
+      // ── APARTMENT CONTINUATION ──
+      // Reuses generateApartmentNumbers from lib/projects/generation.ts with
+      // startOffset = project.totalUnits so that continuation unit numbers are
+      // byte-identical to what createProject would have produced if totalUnits
+      // had been higher at creation time. Keep the two in sync.
+      if (input.additionalUnits > 0) {
+        const apartments = generateApartmentNumbers({
+          total: input.additionalUnits,
+          startingUnitNumber: project.startingUnitNumber as number,
+          unitsPerFloor: project.unitsPerFloor as number,
+          startOffset: project.totalUnits ?? 0,
+        })
+        for (const apt of apartments) {
+          newUnitDocs.push({
+            projectId,
+            type: "apartment",
+            number: apt.number,
+            floor: apt.floor,
+            areaSqft: 0,
+            salePrice: 0,
+            status: "available",
+            notes: "",
+            createdBy,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+      }
+
+      // ── PARKING CONTINUATION ──
+      // Reuses generateParkingNumbers from lib/projects/generation.ts with
+      // startFrom = project.totalParkings + 1 so continuation numbers pick up
+      // where createProject left off (e.g. P001–P003 already exist → P004…).
+      if (input.additionalParkings > 0) {
+        const parkings = generateParkingNumbers({
+          total: input.additionalParkings,
+          prefix: project.parkingPrefix as string,
+          startFrom: (project.totalParkings ?? 0) + 1,
+        })
+        for (const p of parkings) {
+          newUnitDocs.push({
+            projectId,
+            type: "parking",
+            number: p.number,
+            floor: p.floor,
+            areaSqft: 0,
+            salePrice: 0,
+            status: "available",
+            notes: "",
+            createdBy,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+      }
+
+      if (newUnitDocs.length > 0) {
+        await db.collection("units").insertMany(newUnitDocs, { session })
+      }
+
+      await db.collection("projects").findOneAndUpdate(
+        { _id: projectId },
+        {
+          $inc: {
+            totalUnits: input.additionalUnits,
+            totalParkings: input.additionalParkings,
+          },
+          $set: withUpdateMeta({}, user.id),
+        },
+        { session }
+      )
+    })
+
+    if (outcome.ok) {
+      revalidatePath(`/projects/${input.projectId}`)
+      revalidatePath(`/projects/${input.projectId}/inventory`)
+      revalidatePath("/audit")
+    }
+    return outcome
+  } catch (e) {
+    console.error("[expandProjectCapacity]", e)
+    return { ok: false, error: "Failed to expand project capacity" }
+  } finally {
+    await session.endSession()
   }
 }
