@@ -65,7 +65,7 @@ export async function createMaterial(
 export async function updateMaterial(
   raw: unknown
 ): Promise<ActionResult<{ updated: boolean }>> {
-  await requireAdmin()
+  const user = await requireAdmin()
   const parsed = UpdateMaterialInputSchema.safeParse(raw)
   if (!parsed.success) {
     const first = parsed.error.issues[0]
@@ -77,12 +77,13 @@ export async function updateMaterial(
   }
 
   try {
-    const { matchedCount } = await updateMaterialRepo(parsed.data)
+    const { matchedCount } = await updateMaterialRepo(parsed.data, user.id)
     if (matchedCount === 0) {
       return { ok: false, error: "Material not found." }
     }
     revalidatePath("/catalog")
     revalidatePath("/projects", "layout")
+    revalidatePath("/audit")
     return { ok: true, data: { updated: true } }
   } catch (err) {
     if (err instanceof UnitChangeAfterMovementsError) {

@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
+import { withUpdateMeta } from "@/lib/audit/update-meta"
 import type { Transaction } from "@/lib/transactions/schemas"
 import {
   TransferNotFoundError,
@@ -89,7 +90,8 @@ export async function createMaterial(
  * Acceptable for v1 (admin-only path, rare operation, manual coordination).
  */
 export async function updateMaterial(
-  input: UpdateMaterialInput
+  input: UpdateMaterialInput,
+  userId: string
 ): Promise<{ matchedCount: number }> {
   if (!ObjectId.isValid(input.materialId)) {
     throw new MaterialNotFoundError("Invalid material id")
@@ -108,7 +110,7 @@ export async function updateMaterial(
     }
   }
 
-  const patch: Record<string, unknown> = { updatedAt: new Date() }
+  const patch: Record<string, unknown> = {}
   if (input.name !== undefined) patch.name = input.name
   if (input.unit !== undefined) patch.unit = input.unit
   if (input.unit === "other" && input.unitOther !== undefined) {
@@ -121,7 +123,7 @@ export async function updateMaterial(
 
   const res = await db
     .collection<Material>("materials")
-    .updateOne({ _id: materialId }, { $set: patch })
+    .updateOne({ _id: materialId }, { $set: withUpdateMeta(patch, userId) })
   return { matchedCount: res.matchedCount }
 }
 
