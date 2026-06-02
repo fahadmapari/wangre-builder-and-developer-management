@@ -538,6 +538,11 @@ export async function listCrossProjectTotals(
  * Soft-void an ad-hoc transaction. Race-safe via conditional update on
  * category + voided + reversalOf $exists:false. Throws TransactionNotFoundError
  * if no row matches (covers: deleted, not adhoc, already voided, is a reversal).
+ *
+ * Void is permanently scoped to adhoc rows. Purchases are corrected via
+ * reverseTransaction + andUnstock (Phase 7). This asymmetry is intentional —
+ * no operator use case for purchase void has surfaced. Do not extend void to
+ * purchases without first validating a real need.
  */
 export async function voidTransaction(
   transactionId: ObjectId,
