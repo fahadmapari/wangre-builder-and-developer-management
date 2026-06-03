@@ -110,7 +110,7 @@ export function MovementsSheetButton({
           }
         }}
       >
-        <SheetContent side="right" className="sm:max-w-xl">
+        <SheetContent side="right" className="sm:max-w-2xl">
           <SheetHeader>
             <SheetTitle>{materialName} — movement history</SheetTitle>
             <SheetDescription>
