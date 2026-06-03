@@ -60,7 +60,7 @@ export async function removeAllowedEmail(
 export async function updateUserRole(
   raw: unknown
 ): Promise<ActionResult<void>> {
-  await requireAdmin()
+  const currentUser = await requireAdmin()
 
   const parsed = UpdateUserRoleSchema.safeParse(raw)
   if (!parsed.success) {
@@ -75,7 +75,7 @@ export async function updateUserRole(
   if (user?.email) {
     const entry = await getAllowedEmailByEmail(user.email)
     if (entry) {
-      await upsertAllowedEmail(user.email, role, "system")
+      await upsertAllowedEmail(user.email, role, currentUser.email ?? "system")
     }
   }
 
