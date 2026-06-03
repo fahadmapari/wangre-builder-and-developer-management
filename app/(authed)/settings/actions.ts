@@ -13,6 +13,7 @@ import {
   getUserIdByEmail,
   getUserById,
   getAllowedEmailByEmail,
+  countAdminAllowedEmails,
 } from "@/lib/settings/repository"
 
 export async function addAllowedEmail(
@@ -46,6 +47,14 @@ export async function removeAllowedEmail(
 
   if (currentUser.email?.toLowerCase() === email.toLowerCase()) {
     return { ok: false, error: "You cannot remove yourself from the access list." }
+  }
+
+  const entryToRemove = await getAllowedEmailByEmail(email)
+  if (entryToRemove?.role === "admin") {
+    const adminCount = await countAdminAllowedEmails()
+    if (adminCount <= 1) {
+      return { ok: false, error: "Cannot remove the last admin from the access list." }
+    }
   }
 
   const userId = await getUserIdByEmail(email)
@@ -91,6 +100,13 @@ export async function removeUser(userId: string): Promise<ActionResult<void>> {
 
   if (currentUser.id === userId) {
     return { ok: false, error: "You cannot remove your own account." }
+  }
+
+  if (target.role === "admin") {
+    const adminCount = await countAdminAllowedEmails()
+    if (adminCount <= 1) {
+      return { ok: false, error: "Cannot remove the last admin." }
+    }
   }
 
   await deleteSessionsByUserId(userId)

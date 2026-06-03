@@ -176,3 +176,7 @@ export async function getUserIdByEmail(
     )
   return doc ? doc._id.toString() : null
 }
+
+export async function countAdminAllowedEmails(): Promise<number> {
+  return getDb().collection("allowedEmails").countDocuments({ role: "admin" })
+}

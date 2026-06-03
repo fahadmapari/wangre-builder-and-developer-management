@@ -384,28 +384,41 @@ function UserRoleSelect({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   function handleChange(role: string) {
+    setError(null)
     startTransition(async () => {
-      await updateUserRole({ userId, role })
+      const result = await updateUserRole({ userId, role })
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
       router.refresh()
     })
   }
 
   return (
-    <Select
-      value={currentRole}
-      onValueChange={handleChange}
-      disabled={disabled || isPending}
-    >
-      <SelectTrigger className="h-7 w-36 text-xs">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="floor_manager">Floor Manager</SelectItem>
-        <SelectItem value="admin">Admin</SelectItem>
-      </SelectContent>
-    </Select>
+    <div className="space-y-1">
+      <Select
+        value={currentRole}
+        onValueChange={handleChange}
+        disabled={disabled || isPending}
+      >
+        <SelectTrigger className="h-7 w-36 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="floor_manager">Floor Manager</SelectItem>
+          <SelectItem value="admin">Admin</SelectItem>
+        </SelectContent>
+      </Select>
+      {error && (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 
