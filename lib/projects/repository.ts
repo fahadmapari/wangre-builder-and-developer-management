@@ -6,12 +6,19 @@ import type {
   UnitType,
   UnitStatus,
   ProjectStatus,
+  CapitalInjection,
 } from "./schemas"
 import type { Paginated } from "@/lib/transactions/repository"
 import {
   generateApartmentNumbers,
   generateParkingNumbers,
 } from "./generation"
+
+export type ProjectFunds = {
+  totalCapital: number
+  totalSpent: number
+  availableFunds: number
+}
 
 export async function listProjects(): Promise<Project[]> {
   const db = getDb()
@@ -72,6 +79,7 @@ export async function createProjectWithUnits(
     startingUnitNumber: number
     unitsPerFloor: number
     parkingPrefix: string
+    initialCapital?: number
   },
   userId: string
 ): Promise<{ projectId: ObjectId }> {
@@ -140,9 +148,81 @@ export async function createProjectWithUnits(
       if (apartments.length > 0)
         await units.insertMany(apartments, { session })
       if (parkings.length > 0) await units.insertMany(parkings, { session })
+
+      if (input.initialCapital) {
+        await db
+          .collection<Omit<CapitalInjection, "_id">>("capitalInjections")
+          .insertOne(
+            {
+              projectId,
+              amount: input.initialCapital,
+              occurredAt: now,
+              createdBy,
+              createdAt: now,
+            },
+            { session }
+          )
+      }
     })
     return { projectId }
   } finally {
     await session.endSession()
   }
+}
+
+export async function getProjectFunds(projectId: ObjectId): Promise<ProjectFunds> {
+  const db = getDb()
+  const [capitalResult, spentResult] = await Promise.all([
+    db
+      .collection<CapitalInjection>("capitalInjections")
+      .aggregate<{ total: number }>([
+        { $match: { projectId } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+    db
+      .collection("transactions")
+      .aggregate<{ total: number }>([
+        { $match: { projectId, kind: "expense", voided: { $ne: true } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+  ])
+  const totalCapital = capitalResult[0]?.total ?? 0
+  const totalSpent = spentResult[0]?.total ?? 0
+  return { totalCapital, totalSpent, availableFunds: totalCapital - totalSpent }
+}
+
+export async function listCapitalInjections(
+  projectId: ObjectId
+): Promise<CapitalInjection[]> {
+  const db = getDb()
+  return db
+    .collection<CapitalInjection>("capitalInjections")
+    .find({ projectId })
+    .sort({ occurredAt: -1 })
+    .toArray()
+}
+
+export async function addCapitalInjection(
+  input: {
+    projectId: ObjectId
+    amount: number
+    notes: string
+    occurredAt: Date
+  },
+  userId: string
+): Promise<void> {
+  const db = getDb()
+  const doc: Omit<CapitalInjection, "_id"> = {
+    projectId: input.projectId,
+    amount: input.amount,
+    occurredAt: input.occurredAt,
+    createdBy: new ObjectId(userId),
+    createdAt: new Date(),
+  }
+  if (input.notes) doc.notes = input.notes
+  await db
+    .collection<Omit<CapitalInjection, "_id">>("capitalInjections")
+    .insertOne(doc)
 }
