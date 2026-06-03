@@ -40,6 +40,7 @@ type FormState = {
   startingUnitNumber: number
   unitsPerFloor: number
   parkingPrefix: string
+  initialCapital: string
 }
 
 const INITIAL: FormState = {
@@ -52,6 +53,7 @@ const INITIAL: FormState = {
   startingUnitNumber: 101,
   unitsPerFloor: 4,
   parkingPrefix: "P",
+  initialCapital: "",
 }
 
 export function NewProjectButton({ variant }: { variant?: "cta" }) {
@@ -91,7 +93,12 @@ function NewProjectDialog({
     setErrorMsg(null)
     setErrorField(null)
     startTransition(async () => {
-      const result = await createProject(form)
+      const payload = {
+        ...form,
+        initialCapital:
+          form.initialCapital !== "" ? Number(form.initialCapital) : undefined,
+      }
+      const result = await createProject(payload)
       if (!result.ok) {
         setErrorMsg(result.error)
         setErrorField(result.field ?? null)
@@ -201,6 +208,23 @@ function NewProjectDialog({
               rows={3}
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
+              disabled={isPending}
+            />
+          </Field>
+
+          <Field
+            label="Initial capital (₹)"
+            htmlFor="initialCapital"
+            error={errorField === "initialCapital" ? errorMsg : null}
+          >
+            <Input
+              id="initialCapital"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="Optional — leave blank to set later"
+              value={form.initialCapital}
+              onChange={(e) => set("initialCapital", e.target.value)}
               disabled={isPending}
             />
           </Field>
