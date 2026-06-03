@@ -33,6 +33,12 @@ export const CreateProjectInputSchema = z
       .max(2000, "Too large"),
     status: ProjectStatusSchema.default("planning"),
     notes: z.string().max(2000).optional().default(""),
+    initialCapital: z.coerce
+      .number()
+      .int("Must be a whole number")
+      .min(1, "Must be at least ₹1")
+      .max(9_99_99_99_999, "Too large")
+      .optional(),
     startingUnitNumber: z.coerce
       .number()
       .int()
@@ -87,6 +93,28 @@ export type Project = {
   createdAt: Date
   updatedAt: Date
 }
+
+export type CapitalInjection = {
+  _id: ObjectId
+  projectId: ObjectId
+  amount: number
+  notes?: string
+  occurredAt: Date
+  createdBy: ObjectId
+  createdAt: Date
+}
+
+export const AddCapitalInputSchema = z.object({
+  projectId: z.string().min(1, "Missing project"),
+  amount: z.coerce
+    .number()
+    .int("Must be a whole number")
+    .min(1, "Must be at least ₹1")
+    .max(9_99_99_99_999, "Too large"),
+  notes: z.string().max(500, "Notes too long").optional().default(""),
+  occurredAt: z.coerce.date(),
+})
+export type AddCapitalInput = z.infer<typeof AddCapitalInputSchema>
 
 export type UnitType = "apartment" | "parking"
 export type UnitStatus = "available" | "sold"
