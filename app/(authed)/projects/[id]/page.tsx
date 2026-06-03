@@ -9,6 +9,7 @@ import {
   listCapitalInjections,
   getProjectJVStats,
   type ProjectFunds,
+  type ProjectJVStats,
 } from "@/lib/projects/repository"
 import {
   sumProjectRevenue,
@@ -186,7 +187,9 @@ export default async function ProjectDetailPage({
     isAdmin
       ? listCapitalInjections(projectObjectId)
       : Promise.resolve<CapitalInjection[]>([]),
-    getProjectJVStats(projectObjectId),
+    isAdmin
+      ? getProjectJVStats(projectObjectId)
+      : Promise.resolve<ProjectJVStats>({ totalJVUnits: 0, soldJVUnits: 0, jvRevenue: 0 }),
   ])
   if (!project) notFound()
 
@@ -388,7 +391,7 @@ export default async function ProjectDetailPage({
           )}
         </section>
       )}
-      {project.isJointVenture && (
+      {isAdmin && project.isJointVenture && (
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold tracking-tight">
             Joint Venture
