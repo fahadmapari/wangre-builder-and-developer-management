@@ -7,7 +7,9 @@ import {
   listProjects,
   getProjectFunds,
   listCapitalInjections,
+  getProjectJVStats,
   type ProjectFunds,
+  type ProjectJVStats,
 } from "@/lib/projects/repository"
 import {
   sumProjectRevenue,
@@ -165,6 +167,7 @@ export default async function ProjectDetailPage({
     allProjects,
     funds,
     capitalInjections,
+    jvStats,
   ] = await Promise.all([
     getProject(id),
     countSoldUnits(projectObjectId),
@@ -184,6 +187,7 @@ export default async function ProjectDetailPage({
     isAdmin
       ? listCapitalInjections(projectObjectId)
       : Promise.resolve<CapitalInjection[]>([]),
+    getProjectJVStats(projectObjectId),
   ])
   if (!project) notFound()
 
@@ -296,6 +300,7 @@ export default async function ProjectDetailPage({
                     location: project.location,
                     status: project.status,
                     notes: project.notes,
+                    isJointVenture: project.isJointVenture ?? false,
                   }}
                 />
                 <ExpandCapacityDialog
@@ -382,6 +387,23 @@ export default async function ProjectDetailPage({
               </table>
             </div>
           )}
+        </section>
+      )}
+      {project.isJointVenture && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Joint Venture
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Tile
+              label="JV units"
+              value={`${jvStats.soldJVUnits} sold / ${jvStats.totalJVUnits} total`}
+            />
+            <Tile
+              label="JV revenue (excl. from P&L)"
+              value={`₹${INR.format(funds.jvRevenue)}`}
+            />
+          </div>
         </section>
       )}
       <ProjectTabs
