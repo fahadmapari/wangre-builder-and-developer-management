@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ type FormState = {
   unitsPerFloor: number
   parkingPrefix: string
   initialCapital: string
+  isJointVenture: boolean
 }
 
 const INITIAL: FormState = {
@@ -54,6 +56,7 @@ const INITIAL: FormState = {
   unitsPerFloor: 4,
   parkingPrefix: "P",
   initialCapital: "",
+  isJointVenture: false,
 }
 
 export function NewProjectButton({ variant }: { variant?: "cta" }) {
@@ -202,6 +205,24 @@ function NewProjectDialog({
               </SelectContent>
             </Select>
           </Field>
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="isJointVenture"
+              checked={form.isJointVenture}
+              onCheckedChange={(checked: boolean | "indeterminate") =>
+                set("isJointVenture", checked === true)
+              }
+              disabled={isPending}
+            />
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="isJointVenture" className="cursor-pointer">
+                Is Joint Venture?
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                JV unit sales will be excluded from project financials.
+              </p>
+            </div>
+          </div>
           <Field label="Notes" htmlFor="notes">
             <Textarea
               id="notes"
