@@ -14,11 +14,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { editUnit } from "./actions"
+import { Checkbox } from "@/components/ui/checkbox"
 
 type Props = {
   unitId: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  isJointVentureProject: boolean
   current: {
     number: string
     floor: number
@@ -26,6 +28,8 @@ type Props = {
     salePrice: number
     notes?: string
     status: "available" | "sold"
+    type: "apartment" | "parking"
+    isJointVentureUnit?: boolean
   }
 }
 
@@ -33,6 +37,7 @@ export function EditUnitDialog({
   unitId,
   open,
   onOpenChange,
+  isJointVentureProject,
   current,
 }: Props) {
   const [error, setError] = useState<string | null>(null)
@@ -69,6 +74,9 @@ export function EditUnitDialog({
               }
               if (!isSold) {
                 raw.salePrice = formData.get("salePrice")
+              }
+              if (isJointVentureProject && current.type === "apartment") {
+                raw.isJointVentureUnit = formData.get("isJointVentureUnit") === "on"
               }
               const res = await editUnit(raw)
               if (res.ok) {
@@ -154,6 +162,18 @@ export function EditUnitDialog({
               rows={3}
             />
           </div>
+          {isJointVentureProject && current.type === "apartment" && (
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="isJointVentureUnit"
+                name="isJointVentureUnit"
+                defaultChecked={current.isJointVentureUnit ?? false}
+              />
+              <Label htmlFor="isJointVentureUnit" className="cursor-pointer">
+                Mark as Joint Venture Unit
+              </Label>
+            </div>
+          )}
           {error && !errorField && (
             <p className="text-sm text-red-600">{error}</p>
           )}

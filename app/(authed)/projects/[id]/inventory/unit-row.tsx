@@ -91,6 +91,7 @@ export function UnitRow({
               unitId={unit._id}
               open={editOpen}
               onOpenChange={setEditOpen}
+              isJointVentureProject={false}
               current={{
                 number: unit.number,
                 floor: unit.floor ?? 0,
@@ -98,6 +99,7 @@ export function UnitRow({
                 salePrice: unit.salePrice,
                 notes: unit.notes ?? undefined,
                 status: unit.status,
+                type: unit.type,
               }}
             />
           </td>
