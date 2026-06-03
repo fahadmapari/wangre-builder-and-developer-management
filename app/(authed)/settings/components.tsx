@@ -64,7 +64,7 @@ export function SettingsTabs({
         <TabsTrigger value="users">Users</TabsTrigger>
       </TabsList>
       <TabsContent value="access-list" className="mt-6">
-        <AccessListTab allowedEmails={allowedEmails} currentUserId={currentUserId} />
+        <AccessListTab allowedEmails={allowedEmails} />
       </TabsContent>
       <TabsContent value="users" className="mt-6">
         <UsersTab users={users} currentUserId={currentUserId} />
@@ -77,10 +77,8 @@ export function SettingsTabs({
 
 function AccessListTab({
   allowedEmails,
-  currentUserId: _currentUserId,
 }: {
   allowedEmails: SerialisedAllowedEmail[]
-  currentUserId: string
 }) {
   const [open, setOpen] = useState(false)
 
@@ -251,10 +249,16 @@ function AddEmailDialog({
 function RemoveEmailButton({ email }: { email: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   function handleConfirm() {
+    setError(null)
     startTransition(async () => {
-      await removeAllowedEmail(email)
+      const result = await removeAllowedEmail(email)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
       router.refresh()
     })
   }
@@ -283,6 +287,11 @@ function RemoveEmailButton({ email }: { email: string }) {
             {isPending ? "Removing…" : "Remove"}
           </AlertDialogAction>
         </AlertDialogFooter>
+        {error && (
+          <p className="px-6 pb-4 text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        )}
       </AlertDialogContent>
     </AlertDialog>
   )
@@ -411,10 +420,16 @@ function RemoveUserButton({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   function handleConfirm() {
+    setError(null)
     startTransition(async () => {
-      await removeUser(userId)
+      const result = await removeUser(userId)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
       router.refresh()
     })
   }
@@ -444,6 +459,11 @@ function RemoveUserButton({
             {isPending ? "Removing…" : "Remove"}
           </AlertDialogAction>
         </AlertDialogFooter>
+        {error && (
+          <p className="px-6 pb-4 text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        )}
       </AlertDialogContent>
     </AlertDialog>
   )
