@@ -4,6 +4,11 @@ import { MongoDBAdapter } from "@auth/mongodb-adapter"
 import { ObjectId } from "mongodb"
 import client, { getDb } from "@/lib/db/client"
 import type { Role } from "@/types"
+import {
+  getAllowedEmailByEmail,
+  isAllowedEmailsEmpty,
+  seedAllowedEmails,
+} from "@/lib/settings/repository"
 
 const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -23,12 +28,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.role = user.role ?? "floor_manager"
       return session
     },
+    async signIn({ user }) {
+      const email = (user.email ?? "").toLowerCase().trim()
+      if (!email) return false
+
+      // Bootstrap/migration: seed allowedEmails on first run
+      if (await isAllowedEmailsEmpty()) {
+        await seedAllowedEmails(adminEmails)
+      }
+
+      const entry = await getAllowedEmailByEmail(email)
+      return entry !== null
+    },
   },
   events: {
     async createUser({ user }) {
       if (!user.id) return
       const email = (user.email ?? "").toLowerCase()
-      const role: Role = adminEmails.includes(email) ? "admin" : "floor_manager"
+      // Role comes from allowedEmails (set by signIn callback before this fires)
+      const entry = await getAllowedEmailByEmail(email)
+      const role: Role = entry?.role ?? "floor_manager"
       await getDb()
         .collection("users")
         .updateOne(
