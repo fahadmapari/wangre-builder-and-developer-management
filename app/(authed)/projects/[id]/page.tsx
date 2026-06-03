@@ -9,7 +9,6 @@ import {
   listCapitalInjections,
   getProjectJVStats,
   type ProjectFunds,
-  type ProjectJVStats,
 } from "@/lib/projects/repository"
 import {
   sumProjectRevenue,
@@ -401,7 +400,7 @@ export default async function ProjectDetailPage({
             />
             <Tile
               label="JV revenue (excl. from P&L)"
-              value={`₹${INR.format(funds.jvRevenue)}`}
+              value={`₹${INR.format(jvStats.jvRevenue)}`}
             />
           </div>
         </section>
