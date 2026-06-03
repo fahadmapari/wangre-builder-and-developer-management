@@ -260,6 +260,7 @@ export async function addCapital(raw: unknown): Promise<ActionResult<void>> {
       user.id
     )
     revalidatePath(`/projects/${projectId}`)
+    revalidatePath("/audit")
     return { ok: true, data: undefined }
   } catch (err) {
     console.error("[addCapital]", err)

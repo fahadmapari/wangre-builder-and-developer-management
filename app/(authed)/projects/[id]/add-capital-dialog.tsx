@@ -46,7 +46,7 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
       const result = await addCapital({
         projectId,
         amount: Number(amount),
-        occurredAt: new Date(occurredAt),
+        occurredAt: (() => { const [y, m, d] = occurredAt.split("-").map(Number); return new Date(y, m - 1, d) })(),
         notes,
       })
       if (!result.ok) {
