@@ -71,6 +71,7 @@ export async function updateProject(
   if (input.location !== undefined) set.location = input.location
   if (input.status !== undefined) set.status = input.status
   if (input.notes !== undefined) set.notes = input.notes
+  if (input.isJointVenture !== undefined) set.isJointVenture = input.isJointVenture
 
   try {
     const db = getDb()
