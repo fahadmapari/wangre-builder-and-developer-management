@@ -57,6 +57,7 @@ export const CreateProjectInputSchema = z
       .min(1, "Required")
       .max(8, "Too long")
       .default("P"),
+    isJointVenture: z.boolean().default(false),
   })
   .refine(
     (data) => {
@@ -86,6 +87,7 @@ export type Project = {
   startingUnitNumber?: number
   unitsPerFloor?: number
   parkingPrefix?: string
+  isJointVenture?: boolean
   // Edit tracking — present after first post-Phase-10 edit
   lastUpdatedBy?: ObjectId
   lastUpdatedAt?: Date
@@ -132,6 +134,7 @@ export type Unit = {
   soldPriceTotal?: number
   buyerName?: string
   notes?: string
+  isJointVentureUnit?: boolean
   lastUpdatedBy?: ObjectId
   lastUpdatedAt?: Date
   createdBy: ObjectId
@@ -145,6 +148,7 @@ export const UpdateProjectInputSchema = z.object({
   location: z.string().trim().min(1).max(200).optional(),
   status: ProjectStatusSchema.optional(),
   notes: z.string().max(2000).optional(),
+  isJointVenture: z.boolean().optional(),
 })
 export type UpdateProjectInput = z.infer<typeof UpdateProjectInputSchema>
 
@@ -167,6 +171,7 @@ export const EditUnitInputSchema = z.object({
   areaSqft: z.coerce.number().positive().max(100_000).optional(),
   salePrice: z.coerce.number().min(0).max(1_000_000_000).optional(),
   notes: z.string().max(2000).optional(),
+  isJointVentureUnit: z.boolean().optional(),
 })
 export type EditUnitInput = z.infer<typeof EditUnitInputSchema>
 
