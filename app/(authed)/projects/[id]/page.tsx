@@ -5,6 +5,9 @@ import {
   countSoldUnits,
   getProject,
   listProjects,
+  getProjectFunds,
+  listCapitalInjections,
+  type ProjectFunds,
 } from "@/lib/projects/repository"
 import {
   sumProjectRevenue,
@@ -13,6 +16,7 @@ import {
 } from "@/lib/transactions/repository"
 import { listProjectMaterials, listCatalog } from "@/lib/materials/repository"
 import type { Transaction } from "@/lib/transactions/schemas"
+import type { CapitalInjection } from "@/lib/projects/schemas"
 import type { Material, MaterialMovement } from "@/lib/materials/schemas"
 import {
   parseLedgerFilters,
@@ -24,6 +28,7 @@ import { Badge } from "@/components/ui/badge"
 import { LastUpdatedLine } from "../../catalog/material-meta-line"
 import { EditProjectDialog } from "./edit-project-dialog"
 import { ExpandCapacityDialog } from "./expand-capacity-dialog"
+import { AddCapitalDialog } from "./add-capital-dialog"
 import { ProjectTabs } from "./project-tabs"
 import { InventoryFilters } from "./inventory/inventory-filters"
 import {
@@ -149,21 +154,37 @@ export default async function ProjectDetailPage({
   if (filters.search) exportParams.set("search", filters.search)
   const ledgerExportHref = `/api/export/ledger?${exportParams.toString()}`
 
-  const [project, soldCount, revenue, materialRows, catalog, ledgerResult, totals, allProjects] =
-    await Promise.all([
-      getProject(id),
-      countSoldUnits(projectObjectId),
-      sumProjectRevenue(projectObjectId),
-      listProjectMaterials(projectObjectId),
-      listCatalog(),
-      isAdmin
-        ? listLedger(projectObjectId, filters, page, LEDGER_PAGE_SIZE)
-        : Promise.resolve({ rows: [], total: 0 }),
-      isAdmin
-        ? computeTotals(projectObjectId, filters)
-        : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
-      listProjects(),
-    ])
+  const [
+    project,
+    soldCount,
+    revenue,
+    materialRows,
+    catalog,
+    ledgerResult,
+    totals,
+    allProjects,
+    funds,
+    capitalInjections,
+  ] = await Promise.all([
+    getProject(id),
+    countSoldUnits(projectObjectId),
+    sumProjectRevenue(projectObjectId),
+    listProjectMaterials(projectObjectId),
+    listCatalog(),
+    isAdmin
+      ? listLedger(projectObjectId, filters, page, LEDGER_PAGE_SIZE)
+      : Promise.resolve({ rows: [], total: 0 }),
+    isAdmin
+      ? computeTotals(projectObjectId, filters)
+      : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
+    listProjects(),
+    isAdmin
+      ? getProjectFunds(projectObjectId)
+      : Promise.resolve<ProjectFunds>({ totalCapital: 0, totalSpent: 0, availableFunds: 0 }),
+    isAdmin
+      ? listCapitalInjections(projectObjectId)
+      : Promise.resolve<CapitalInjection[]>([]),
+  ])
   if (!project) notFound()
 
   // Look up the last-updater's display name for the project header.
@@ -305,6 +326,60 @@ export default async function ProjectDetailPage({
           />
         </div>
       </header>
+      {isAdmin && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight">Capital</h2>
+            <AddCapitalDialog projectId={id} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Tile
+              label="Total capital"
+              value={`₹${INR.format(funds.totalCapital)}`}
+            />
+            <Tile
+              label="Total spent"
+              value={`₹${INR.format(funds.totalSpent)}`}
+            />
+            <Tile
+              label="Available funds"
+              value={`₹${INR.format(Math.abs(funds.availableFunds))}${funds.availableFunds < 0 ? " (deficit)" : ""}`}
+              negative={funds.availableFunds < 0}
+            />
+          </div>
+          {capitalInjections.length > 0 && (
+            <div className="overflow-hidden rounded-md border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-3 py-2 text-left font-medium">Date</th>
+                    <th className="px-3 py-2 text-right font-medium">Amount</th>
+                    <th className="px-3 py-2 text-left font-medium">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {capitalInjections.map((inj) => (
+                    <tr
+                      key={inj._id.toHexString()}
+                      className="border-b last:border-0"
+                    >
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {inj.occurredAt.toLocaleDateString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        ₹{INR.format(inj.amount)}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {inj.notes ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
       <ProjectTabs
         role={user.role}
         inventory={
@@ -357,14 +432,18 @@ export default async function ProjectDetailPage({
 function Tile({
   label,
   value,
+  negative,
 }: {
   label: string
   value: string
+  negative?: boolean
 }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3">
       <span className="text-xs uppercase tracking-wide">{label}</span>
-      <span className="font-mono text-xl">{value}</span>
+      <span className={`font-mono text-xl${negative ? " text-destructive" : ""}`}>
+        {value}
+      </span>
     </div>
   )
 }
