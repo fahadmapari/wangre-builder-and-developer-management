@@ -149,7 +149,7 @@ export async function createProjectWithUnits(
         await units.insertMany(apartments, { session })
       if (parkings.length > 0) await units.insertMany(parkings, { session })
 
-      if (input.initialCapital) {
+      if (input.initialCapital != null) {
         await db
           .collection<Omit<CapitalInjection, "_id">>("capitalInjections")
           .insertOne(
@@ -184,7 +184,20 @@ export async function getProjectFunds(projectId: ObjectId): Promise<ProjectFunds
       .collection("transactions")
       .aggregate<{ total: number }>([
         { $match: { projectId, kind: "expense", voided: { $ne: true } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                $cond: [
+                  { $ifNull: ["$reversalOf", false] },
+                  { $multiply: ["$amount", -1] },
+                  "$amount",
+                ],
+              },
+            },
+          },
+        },
       ])
       .toArray(),
   ])
