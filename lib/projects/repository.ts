@@ -16,9 +16,10 @@ import {
 
 export type ProjectFunds = {
   totalCapital: number
-  totalRevenue: number
+  totalRevenue: number    // gross income (all non-voided income transactions)
   totalSpent: number
-  availableFunds: number
+  availableFunds: number  // capital + (revenue - jvRevenue) - spent
+  jvRevenue: number       // JV unit sale revenue excluded from availableFunds
 }
 
 export async function listProjects(): Promise<Project[]> {
@@ -81,6 +82,7 @@ export async function createProjectWithUnits(
     unitsPerFloor: number
     parkingPrefix: string
     initialCapital?: number
+    isJointVenture?: boolean
   },
   userId: string
 ): Promise<{ projectId: ObjectId }> {
@@ -104,6 +106,7 @@ export async function createProjectWithUnits(
         startingUnitNumber: input.startingUnitNumber,
         unitsPerFloor: input.unitsPerFloor,
         parkingPrefix: input.parkingPrefix,
+        isJointVenture: input.isJointVenture ?? false,
         createdBy,
         createdAt: now,
         updatedAt: now,
@@ -173,7 +176,7 @@ export async function createProjectWithUnits(
 
 export async function getProjectFunds(projectId: ObjectId): Promise<ProjectFunds> {
   const db = getDb()
-  const [capitalResult, revenueResult, spentResult] = await Promise.all([
+  const [capitalResult, revenueResult, spentResult, jvRevenueResult] = await Promise.all([
     db
       .collection<CapitalInjection>("capitalInjections")
       .aggregate<{ total: number }>([
@@ -208,11 +211,76 @@ export async function getProjectFunds(projectId: ObjectId): Promise<ProjectFunds
         },
       ])
       .toArray(),
+    db
+      .collection<Unit>("units")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            projectId,
+            isJointVentureUnit: true,
+            type: "apartment",
+            status: "sold",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$soldPriceTotal" } } },
+      ])
+      .toArray(),
   ])
   const totalCapital = capitalResult[0]?.total ?? 0
   const totalRevenue = revenueResult[0]?.total ?? 0
   const totalSpent = spentResult[0]?.total ?? 0
-  return { totalCapital, totalRevenue, totalSpent, availableFunds: totalCapital + totalRevenue - totalSpent }
+  const jvRevenue = jvRevenueResult[0]?.total ?? 0
+  return {
+    totalCapital,
+    totalRevenue,
+    totalSpent,
+    jvRevenue,
+    availableFunds: totalCapital + totalRevenue - jvRevenue - totalSpent,
+  }
+}
+
+export type ProjectJVStats = {
+  totalJVUnits: number
+  soldJVUnits: number
+  jvRevenue: number
+}
+
+export async function getProjectJVStats(
+  projectId: ObjectId
+): Promise<ProjectJVStats> {
+  const db = getDb()
+  const [totalResult, soldResult, revenueResult] = await Promise.all([
+    db
+      .collection<Unit>("units")
+      .countDocuments({ projectId, isJointVentureUnit: true, type: "apartment" }),
+    db
+      .collection<Unit>("units")
+      .countDocuments({
+        projectId,
+        isJointVentureUnit: true,
+        type: "apartment",
+        status: "sold",
+      }),
+    db
+      .collection<Unit>("units")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            projectId,
+            isJointVentureUnit: true,
+            type: "apartment",
+            status: "sold",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$soldPriceTotal" } } },
+      ])
+      .toArray(),
+  ])
+  return {
+    totalJVUnits: totalResult,
+    soldJVUnits: soldResult,
+    jvRevenue: revenueResult[0]?.total ?? 0,
+  }
 }
 
 export async function listCapitalInjections(

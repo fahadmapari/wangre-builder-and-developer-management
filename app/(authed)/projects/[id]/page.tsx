@@ -180,7 +180,7 @@ export default async function ProjectDetailPage({
     listProjects(),
     isAdmin
       ? getProjectFunds(projectObjectId)
-      : Promise.resolve<ProjectFunds>({ totalCapital: 0, totalRevenue: 0, totalSpent: 0, availableFunds: 0 }),
+      : Promise.resolve<ProjectFunds>({ totalCapital: 0, totalRevenue: 0, totalSpent: 0, availableFunds: 0, jvRevenue: 0 }),
     isAdmin
       ? listCapitalInjections(projectObjectId)
       : Promise.resolve<CapitalInjection[]>([]),
