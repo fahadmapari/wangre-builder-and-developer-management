@@ -16,6 +16,7 @@ import {
 
 export type ProjectFunds = {
   totalCapital: number
+  totalRevenue: number
   totalSpent: number
   availableFunds: number
 }
@@ -172,11 +173,18 @@ export async function createProjectWithUnits(
 
 export async function getProjectFunds(projectId: ObjectId): Promise<ProjectFunds> {
   const db = getDb()
-  const [capitalResult, spentResult] = await Promise.all([
+  const [capitalResult, revenueResult, spentResult] = await Promise.all([
     db
       .collection<CapitalInjection>("capitalInjections")
       .aggregate<{ total: number }>([
         { $match: { projectId } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+    db
+      .collection("transactions")
+      .aggregate<{ total: number }>([
+        { $match: { projectId, kind: "income", voided: { $ne: true } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ])
       .toArray(),
@@ -202,8 +210,9 @@ export async function getProjectFunds(projectId: ObjectId): Promise<ProjectFunds
       .toArray(),
   ])
   const totalCapital = capitalResult[0]?.total ?? 0
+  const totalRevenue = revenueResult[0]?.total ?? 0
   const totalSpent = spentResult[0]?.total ?? 0
-  return { totalCapital, totalSpent, availableFunds: totalCapital - totalSpent }
+  return { totalCapital, totalRevenue, totalSpent, availableFunds: totalCapital + totalRevenue - totalSpent }
 }
 
 export async function listCapitalInjections(

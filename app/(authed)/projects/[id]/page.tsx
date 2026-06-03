@@ -180,7 +180,7 @@ export default async function ProjectDetailPage({
     listProjects(),
     isAdmin
       ? getProjectFunds(projectObjectId)
-      : Promise.resolve<ProjectFunds>({ totalCapital: 0, totalSpent: 0, availableFunds: 0 }),
+      : Promise.resolve<ProjectFunds>({ totalCapital: 0, totalRevenue: 0, totalSpent: 0, availableFunds: 0 }),
     isAdmin
       ? listCapitalInjections(projectObjectId)
       : Promise.resolve<CapitalInjection[]>([]),
@@ -332,10 +332,14 @@ export default async function ProjectDetailPage({
             <h2 className="text-sm font-semibold tracking-tight">Capital</h2>
             <AddCapitalDialog projectId={id} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Tile
               label="Total capital"
               value={`₹${INR.format(funds.totalCapital)}`}
+            />
+            <Tile
+              label="Revenue"
+              value={`₹${INR.format(funds.totalRevenue)}`}
             />
             <Tile
               label="Total spent"
