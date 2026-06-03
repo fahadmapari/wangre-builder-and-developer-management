@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -31,6 +32,7 @@ type Props = {
     location: string
     status: ProjectStatus
     notes?: string
+    isJointVenture?: boolean
   }
 }
 
@@ -75,6 +77,7 @@ export function EditProjectDialog({ projectId, current }: Props) {
                 location: String(formData.get("location") ?? ""),
                 status: String(formData.get("status") ?? "") as ProjectStatus,
                 notes: String(formData.get("notes") ?? ""),
+                isJointVenture: formData.get("isJointVenture") === "on",
               }
               const res = await updateProject(raw)
               if (res.ok) {
@@ -127,6 +130,16 @@ export function EditProjectDialog({ projectId, current }: Props) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="isJointVenture"
+              name="isJointVenture"
+              defaultChecked={current.isJointVenture ?? false}
+            />
+            <Label htmlFor="isJointVenture" className="cursor-pointer">
+              Is Joint Venture?
+            </Label>
           </div>
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
