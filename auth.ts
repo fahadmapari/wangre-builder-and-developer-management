@@ -10,6 +10,7 @@ import {
   seedAllowedEmails,
 } from "@/lib/settings/repository"
 
+// Only used for first-run bootstrap — not consulted for ongoing access control
 const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
@@ -29,22 +30,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
     async signIn({ user }) {
-      const email = (user.email ?? "").toLowerCase().trim()
-      if (!email) return false
+      try {
+        const email = (user.email ?? "").toLowerCase().trim()
+        if (!email) return false
 
-      // Bootstrap/migration: seed allowedEmails on first run
-      if (await isAllowedEmailsEmpty()) {
-        await seedAllowedEmails(adminEmails)
+        // Bootstrap is a one-time operation on first sign-in to a fresh DB.
+        // Concurrent first sign-ins create a small race window; this is acceptable
+        // because bootstrap is not repeated once the collection is populated.
+        if (await isAllowedEmailsEmpty()) {
+          await seedAllowedEmails(adminEmails)
+        }
+
+        const entry = await getAllowedEmailByEmail(email)
+        return entry !== null
+      } catch (e) {
+        console.error("[auth] signIn DB error:", e)
+        throw e
       }
-
-      const entry = await getAllowedEmailByEmail(email)
-      return entry !== null
     },
   },
   events: {
     async createUser({ user }) {
       if (!user.id) return
-      const email = (user.email ?? "").toLowerCase()
+      const email = (user.email ?? "").toLowerCase().trim()
       // Role comes from allowedEmails (set by signIn callback before this fires)
       const entry = await getAllowedEmailByEmail(email)
       const role: Role = entry?.role ?? "floor_manager"
