@@ -7,9 +7,10 @@ import {
   CreateProjectInputSchema,
   UpdateProjectInputSchema,
   ExpandProjectCapacityInputSchema,
+  AddCapitalInputSchema,
   type ActionResult,
 } from "@/lib/projects/schemas"
-import { createProjectWithUnits } from "@/lib/projects/repository"
+import { createProjectWithUnits, addCapitalInjection } from "@/lib/projects/repository"
 import client, { getDb } from "@/lib/db/client"
 import { withUpdateMeta } from "@/lib/audit/update-meta"
 import {
@@ -235,5 +236,33 @@ export async function expandProjectCapacity(
     return { ok: false, error: "Failed to expand project capacity" }
   } finally {
     await session.endSession()
+  }
+}
+
+export async function addCapital(raw: unknown): Promise<ActionResult<void>> {
+  const user = await requireAdmin()
+  const parsed = AddCapitalInputSchema.safeParse(raw)
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]
+    return {
+      ok: false,
+      error: first?.message ?? "Invalid input",
+      field: first?.path.join(".") || undefined,
+    }
+  }
+  const { projectId, amount, notes, occurredAt } = parsed.data
+  if (!ObjectId.isValid(projectId)) {
+    return { ok: false, error: "Invalid project id" }
+  }
+  try {
+    await addCapitalInjection(
+      { projectId: new ObjectId(projectId), amount, notes, occurredAt },
+      user.id
+    )
+    revalidatePath(`/projects/${projectId}`)
+    return { ok: true, data: undefined }
+  } catch (err) {
+    console.error("[addCapital]", err)
+    return { ok: false, error: "Could not add funds. Please try again." }
   }
 }
