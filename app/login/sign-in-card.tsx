@@ -5,7 +5,11 @@ import { signIn } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-export function SignInCard() {
+interface SignInCardProps {
+  serverError?: string | null
+}
+
+export function SignInCard({ serverError }: SignInCardProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -19,6 +23,8 @@ export function SignInCard() {
       }
     })
   }
+
+  const displayError = serverError ?? error
 
   return (
     <Card className="w-full">
@@ -36,9 +42,9 @@ export function SignInCard() {
           <GoogleMark />
           {isPending ? "Redirecting…" : "Continue with Google"}
         </Button>
-        {error && (
+        {displayError && (
           <p className="text-xs text-destructive" role="alert">
-            {error}
+            {displayError}
           </p>
         )}
       </CardContent>
