@@ -396,6 +396,7 @@ export default async function ProjectDetailPage({
               page={parsePage(sp.unitsPage)}
               pageSize={UNITS_PAGE_SIZE}
               currentSearchParams={sp}
+              isJointVentureProject={project.isJointVenture ?? false}
             />
           </div>
         }

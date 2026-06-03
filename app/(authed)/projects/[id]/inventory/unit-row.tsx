@@ -15,6 +15,7 @@ export function UnitRow({
   unit,
   projectId,
   role,
+  isJointVentureProject,
 }: {
   unit: {
     _id: string
@@ -28,9 +29,11 @@ export function UnitRow({
     buyerName: string | null
     soldPriceTotal: number | null
     soldAt: string | null
+    isJointVentureUnit: boolean
   }
   projectId: string
   role: Role
+  isJointVentureProject: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -44,7 +47,16 @@ export function UnitRow({
         className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/40"
         onClick={() => setOpen(true)}
       >
-        <td className="px-4 py-3 font-mono">{unit.number}</td>
+        <td className="px-4 py-3 font-mono">
+          <span className="flex items-center gap-1.5">
+            {unit.number}
+            {unit.isJointVentureUnit && (
+              <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300 text-[10px] px-1.5 py-0">
+                JV
+              </Badge>
+            )}
+          </span>
+        </td>
         <td className="px-4 py-3 capitalize">{unit.type}</td>
         <td className="px-4 py-3 font-mono">{unit.floor ?? ""}</td>
         <td className="px-4 py-3">
@@ -91,7 +103,7 @@ export function UnitRow({
               unitId={unit._id}
               open={editOpen}
               onOpenChange={setEditOpen}
-              isJointVentureProject={false}
+              isJointVentureProject={isJointVentureProject}
               current={{
                 number: unit.number,
                 floor: unit.floor ?? 0,
@@ -100,6 +112,7 @@ export function UnitRow({
                 notes: unit.notes ?? undefined,
                 status: unit.status,
                 type: unit.type,
+                isJointVentureUnit: unit.isJointVentureUnit,
               }}
             />
           </td>

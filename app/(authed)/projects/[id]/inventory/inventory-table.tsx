@@ -36,6 +36,7 @@ export async function InventoryTable({
   page,
   pageSize,
   currentSearchParams,
+  isJointVentureProject,
 }: {
   projectId: string
   role: Role
@@ -43,6 +44,7 @@ export async function InventoryTable({
   page: number
   pageSize: number
   currentSearchParams: Record<string, string | string[] | undefined>
+  isJointVentureProject: boolean
 }) {
   const filters = parseFilters(searchParams)
   const { rows: units, total } = await listUnitsForProject(
@@ -95,9 +97,11 @@ export async function InventoryTable({
                   buyerName: u.buyerName ?? null,
                   soldPriceTotal: u.soldPriceTotal ?? null,
                   soldAt: u.soldAt ? u.soldAt.toISOString() : null,
+                  isJointVentureUnit: u.isJointVentureUnit ?? false,
                 }}
                 projectId={projectId}
                 role={role}
+                isJointVentureProject={isJointVentureProject}
               />
             ))}
           </tbody>
