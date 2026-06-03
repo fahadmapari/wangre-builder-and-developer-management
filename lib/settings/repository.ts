@@ -3,6 +3,16 @@ import { getDb } from "@/lib/db/client"
 import type { Role } from "@/types"
 import type { AllowedEmail, UserRow } from "./schemas"
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type UserDoc = {
+  _id: ObjectId
+  email: string
+  name?: string | null
+  image?: string | null
+  role?: Role
+}
+
 // ── AllowedEmails ────────────────────────────────────────────────────────────
 
 export async function listAllowedEmails(): Promise<AllowedEmail[]> {
@@ -41,7 +51,7 @@ export async function upsertAllowedEmail(
 
 export async function deleteAllowedEmailByEmail(email: string): Promise<void> {
   await getDb()
-    .collection("allowedEmails")
+    .collection<AllowedEmail>("allowedEmails")
     .deleteOne({ email: email.toLowerCase().trim() })
 }
 
@@ -69,11 +79,11 @@ export async function seedAllowedEmails(adminEmails: string[]): Promise<void> {
     entries.push({ email, role: u.role ?? "floor_manager" })
   }
 
-  for (const email of adminEmails) {
-    if (!seen.has(email)) {
-      seen.add(email)
-      entries.push({ email, role: "admin" })
-    }
+  for (const rawEmail of adminEmails) {
+    const email = rawEmail.toLowerCase().trim()
+    if (!email || seen.has(email)) continue
+    seen.add(email)
+    entries.push({ email, role: "admin" })
   }
 
   for (const entry of entries) {
@@ -96,13 +106,7 @@ export async function seedAllowedEmails(adminEmails: string[]): Promise<void> {
 
 export async function listUsers(): Promise<UserRow[]> {
   const docs = await getDb()
-    .collection<{
-      _id: ObjectId
-      email: string
-      name?: string | null
-      image?: string | null
-      role?: Role
-    }>("users")
+    .collection<UserDoc>("users")
     .find({}, { projection: { email: 1, name: 1, image: 1, role: 1 } })
     .sort({ email: 1 })
     .toArray()
@@ -119,13 +123,7 @@ export async function listUsers(): Promise<UserRow[]> {
 export async function getUserById(userId: string): Promise<UserRow | null> {
   if (!ObjectId.isValid(userId)) return null
   const doc = await getDb()
-    .collection<{
-      _id: ObjectId
-      email: string
-      name?: string | null
-      image?: string | null
-      role?: Role
-    }>("users")
+    .collection<UserDoc>("users")
     .findOne(
       { _id: new ObjectId(userId) },
       { projection: { email: 1, name: 1, image: 1, role: 1 } }
