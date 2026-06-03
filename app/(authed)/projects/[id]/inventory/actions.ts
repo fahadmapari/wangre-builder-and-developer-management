@@ -172,6 +172,7 @@ export async function editUnit(
     if (input.areaSqft !== undefined) set.areaSqft = input.areaSqft
     if (input.salePrice !== undefined) set.salePrice = input.salePrice
     if (input.notes !== undefined) set.notes = input.notes
+    if (input.isJointVentureUnit !== undefined) set.isJointVentureUnit = input.isJointVentureUnit
 
     await db.collection("units").findOneAndUpdate(
       { _id: unitId },
