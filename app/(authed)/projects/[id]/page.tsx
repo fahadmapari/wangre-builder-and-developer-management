@@ -31,6 +31,7 @@ import { LastUpdatedLine } from "../../catalog/material-meta-line"
 import { EditProjectDialog } from "./edit-project-dialog"
 import { ExpandCapacityDialog } from "./expand-capacity-dialog"
 import { AddCapitalDialog } from "./add-capital-dialog"
+import { CollapsibleSection } from "./collapsible-section"
 import { ProjectTabs } from "./project-tabs"
 import { InventoryFilters } from "./inventory/inventory-filters"
 import {
@@ -334,11 +335,10 @@ export default async function ProjectDetailPage({
         </div>
       </header>
       {isAdmin && (
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-tight">Capital</h2>
-            <AddCapitalDialog projectId={id} />
-          </div>
+        <CollapsibleSection
+          title="Capital"
+          actions={<AddCapitalDialog projectId={id} />}
+        >
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Tile
               label="Total capital"
@@ -389,13 +389,10 @@ export default async function ProjectDetailPage({
               </table>
             </div>
           )}
-        </section>
+        </CollapsibleSection>
       )}
       {isAdmin && project.isJointVenture && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold tracking-tight">
-            Joint Venture
-          </h2>
+        <CollapsibleSection title="Joint Venture">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Tile
               label="JV units"
@@ -406,7 +403,7 @@ export default async function ProjectDetailPage({
               value={`₹${INR.format(jvStats.jvRevenue)}`}
             />
           </div>
-        </section>
+        </CollapsibleSection>
       )}
       <ProjectTabs
         role={user.role}
