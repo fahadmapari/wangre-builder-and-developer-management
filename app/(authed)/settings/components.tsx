@@ -133,7 +133,7 @@ function AccessListTab({
                   {entry.addedByEmail}
                 </td>
                 <td className="px-4 py-2.5 text-muted-foreground">
-                  {new Date(entry.addedAt).toLocaleDateString()}
+                  {new Date(entry.addedAt).toLocaleDateString('en-US')}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <RemoveEmailButton email={entry.email} />
