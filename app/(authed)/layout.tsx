@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/session"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { UserMenu } from "./user-menu"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default async function AuthedLayout({
   children,
@@ -68,11 +69,14 @@ export default async function AuthedLayout({
             </>
           ) : null}
         </div>
-        <UserMenu
-          email={user.email ?? ""}
-          name={user.name ?? null}
-          image={user.image ?? null}
-        />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <UserMenu
+            email={user.email ?? ""}
+            name={user.name ?? null}
+            image={user.image ?? null}
+          />
+        </div>
       </header>
       <main className="flex-1 bg-background">{children}</main>
     </div>
