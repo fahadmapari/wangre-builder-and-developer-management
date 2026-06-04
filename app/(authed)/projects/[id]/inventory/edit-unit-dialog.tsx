@@ -24,7 +24,7 @@ type Props = {
   current: {
     number: string
     floor: number
-    areaSqft: number
+    areaSqft?: number
     salePrice: number
     notes?: string
     status: "available" | "sold"
@@ -126,7 +126,6 @@ export function EditUnitDialog({
               min={1}
               max={100000}
               defaultValue={current.areaSqft}
-              required
             />
             {errorField === "areaSqft" && (
               <p className="text-sm text-red-600">{error}</p>
