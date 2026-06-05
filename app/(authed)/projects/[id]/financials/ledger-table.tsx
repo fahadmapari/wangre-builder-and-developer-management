@@ -55,9 +55,10 @@ export async function LedgerTable({
   const unitLabels = await fetchUnitsForRows(rows)
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="h-full overflow-hidden py-0">
+      <div className="h-full overflow-auto">
       <table className="w-full text-sm">
-        <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+        <thead className="sticky top-0 z-10 border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="px-4 py-3">Date</th>
             <th className="px-4 py-3">Kind</th>
@@ -102,6 +103,7 @@ export async function LedgerTable({
           })}
         </tbody>
       </table>
+      </div>
     </Card>
   )
 }

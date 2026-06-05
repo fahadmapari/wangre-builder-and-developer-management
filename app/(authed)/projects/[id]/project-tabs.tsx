@@ -33,7 +33,7 @@ export function ProjectTabs({
   const sp = useSearchParams()
   const defaultTab = pickTab(sp.get("tab"), role)
   return (
-    <Tabs defaultValue={defaultTab}>
+    <Tabs defaultValue={defaultTab} className="h-full">
       <TabsList>
         <TabsTrigger value="inventory">Inventory</TabsTrigger>
         <TabsTrigger value="materials">Materials</TabsTrigger>
@@ -41,18 +41,18 @@ export function ProjectTabs({
           <TabsTrigger value="financials">Financials</TabsTrigger>
         ) : null}
       </TabsList>
-      <TabsContent value="inventory">
+      <TabsContent value="inventory" className="min-h-0 overflow-hidden">
         {inventory ?? (
           <Placeholder>Inventory listing coming in Phase 3.</Placeholder>
         )}
       </TabsContent>
-      <TabsContent value="materials">
+      <TabsContent value="materials" className="min-h-0 overflow-hidden">
         {materials ?? (
           <Placeholder>Materials tracking coming in Phase 4.</Placeholder>
         )}
       </TabsContent>
       {role === "admin" ? (
-        <TabsContent value="financials">
+        <TabsContent value="financials" className="min-h-0 overflow-hidden">
           {financials ?? (
             <Placeholder>Financial ledger coming in Phase 5.</Placeholder>
           )}

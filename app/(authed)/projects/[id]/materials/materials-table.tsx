@@ -43,8 +43,8 @@ export function MaterialsTable({
   const isAdmin = role === "admin"
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 justify-end gap-2">
         <AddMaterialButton />
         {isAdmin ? (
           <TopLevelRecordPurchaseButton
@@ -59,9 +59,10 @@ export function MaterialsTable({
           <p>Use &ldquo;Add material&rdquo; to register one, then &ldquo;Record purchase&rdquo;.</p>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="min-h-0 flex-1 overflow-hidden py-0">
+          <div className="h-full overflow-auto">
           <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="sticky top-0 z-10 border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Unit</th>
@@ -85,6 +86,7 @@ export function MaterialsTable({
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
     </div>

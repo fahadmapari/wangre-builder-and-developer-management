@@ -66,10 +66,11 @@ export async function InventoryTable({
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="flex flex-col gap-3">
-      <Card className="overflow-hidden">
+    <div className="flex min-h-0 h-full flex-col gap-3">
+      <Card className="min-h-0 flex-1 overflow-hidden py-0">
+        <div className="h-full overflow-auto">
         <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <thead className="sticky top-0 z-10 border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-3">Number</th>
               <th className="px-4 py-3">Type</th>
@@ -106,6 +107,7 @@ export async function InventoryTable({
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
       <UnitsPagination
         current={page}

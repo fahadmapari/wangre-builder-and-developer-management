@@ -52,8 +52,8 @@ export function FinancialsView({
         : `Showing ${rows.length} of ${total} entries.`
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile
           label="Revenue"
           value={`₹${INR.format(totals.revenue)}`}
@@ -78,7 +78,7 @@ export function FinancialsView({
           tone={totals.net < 0 ? "loss" : "gain"}
         />
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between">
         <p className="text-sm text-muted-foreground">{entriesLine}</p>
         <div className="flex gap-2">
           <AddIncomeButton projectId={projectId} />
@@ -91,32 +91,36 @@ export function FinancialsView({
           </Button>
         </div>
       </div>
-      <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
+      <div className="shrink-0">
+        <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
+      </div>
       {search ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="shrink-0 text-sm text-muted-foreground">
           Showing matches for{" "}
           <span className="font-medium text-foreground">&quot;{search}&quot;</span>
           {" — "}use the search input above to refine or clear.
         </p>
       ) : null}
-      {rows.length === 0 ? (
-        <p className="rounded border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-          {search
-            ? "No transactions match your search."
-            : "No transactions in this window."}
-        </p>
-      ) : (
-        <LedgerTable
-          rows={rows}
-          otherProjectByRowId={otherProjectByRowId}
-          linkedMaterials={linkedMaterials}
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {rows.length === 0 ? (
+          <p className="rounded border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+            {search
+              ? "No transactions match your search."
+              : "No transactions in this window."}
+          </p>
+        ) : (
+          <LedgerTable
+            rows={rows}
+            otherProjectByRowId={otherProjectByRowId}
+            linkedMaterials={linkedMaterials}
+          />
+        )}
+        <Pagination
+          current={page}
+          totalPages={totalPages}
+          searchParams={currentSearchParams}
         />
-      )}
-      <Pagination
-        current={page}
-        totalPages={totalPages}
-        searchParams={currentSearchParams}
-      />
+      </div>
     </div>
   )
 }
