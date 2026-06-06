@@ -1,9 +1,11 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { requireAuth } from "@/lib/auth/session"
 import { listProjects } from "@/lib/projects/repository"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { NewProjectButton } from "./new-project-dialog"
+import { ProjectFilters } from "./project-filters"
 
 const STATUS_LABEL: Record<string, string> = {
   planning: "Planning",
@@ -12,9 +14,18 @@ const STATUS_LABEL: Record<string, string> = {
   on_hold: "On hold",
 }
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; search?: string }>
+}) {
   const user = await requireAuth()
-  const projects = await listProjects()
+  const sp = await searchParams
+  const projects = await listProjects({ status: sp.status, search: sp.search })
+
+  const hasFilters =
+    (sp.status && sp.status !== "all") ||
+    ((sp.search?.trim().length ?? 0) >= 2)
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
@@ -23,26 +34,33 @@ export default async function ProjectsPage() {
           <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
           <p className="text-sm text-muted-foreground">
             {projects.length === 0
-              ? "No projects yet."
+              ? hasFilters
+                ? "No projects match your filters."
+                : "No projects yet."
               : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
           </p>
         </div>
         {user.role === "admin" ? <NewProjectButton /> : null}
       </div>
 
+      <Suspense>
+        <ProjectFilters />
+      </Suspense>
+
       {projects.length === 0 ? (
         <Card className="grid place-items-center gap-3 p-12 text-center">
-          <p className="text-sm text-muted-foreground">No projects yet.</p>
-          {user.role === "admin" ? <NewProjectButton variant="cta" /> : null}
+          <p className="text-sm text-muted-foreground">
+            {hasFilters ? "No projects match your filters." : "No projects yet."}
+          </p>
+          {user.role === "admin" && !hasFilters ? (
+            <NewProjectButton variant="cta" />
+          ) : null}
         </Card>
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
             <li key={String(p._id)}>
-              <Link
-                href={`/projects/${String(p._id)}`}
-                className="block"
-              >
+              <Link href={`/projects/${String(p._id)}`} className="block">
                 <Card className="flex h-full flex-col gap-3 p-5 transition hover:border-foreground/30">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-1.5">
