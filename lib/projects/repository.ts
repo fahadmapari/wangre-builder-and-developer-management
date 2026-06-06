@@ -37,7 +37,8 @@ export async function listProjects(filters?: ProjectListFilters): Promise<Projec
 
   const trimmed = filters?.search?.trim() ?? ""
   if (trimmed.length >= 2) {
-    const regex = { $regex: trimmed, $options: "i" }
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const regex = { $regex: escaped, $options: "i" }
     query.$or = [{ name: regex }, { location: regex }]
   }
 
