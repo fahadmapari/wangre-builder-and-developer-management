@@ -22,11 +22,28 @@ export type ProjectFunds = {
   jvRevenue: number       // JV unit sale revenue excluded from availableFunds
 }
 
-export async function listProjects(): Promise<Project[]> {
+export type ProjectListFilters = {
+  status?: string   // undefined or "all" → no filter
+  search?: string   // undefined or <2 chars → no filter; regex on name + location
+}
+
+export async function listProjects(filters?: ProjectListFilters): Promise<Project[]> {
   const db = getDb()
+  const query: Record<string, unknown> = {}
+
+  if (filters?.status && filters.status !== "all") {
+    query.status = filters.status
+  }
+
+  const trimmed = filters?.search?.trim() ?? ""
+  if (trimmed.length >= 2) {
+    const regex = { $regex: trimmed, $options: "i" }
+    query.$or = [{ name: regex }, { location: regex }]
+  }
+
   return db
     .collection<Project>("projects")
-    .find({})
+    .find(query)
     .sort({ createdAt: -1 })
     .toArray()
 }
