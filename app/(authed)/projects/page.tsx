@@ -21,10 +21,14 @@ export default async function ProjectsPage({
 }) {
   const user = await requireAuth()
   const sp = await searchParams
-  const projects = await listProjects({ status: sp.status, search: sp.search })
+  const VALID_STATUSES = ["planning", "under_construction", "completed", "on_hold"] as const
+  const validStatus = sp.status && (VALID_STATUSES as readonly string[]).includes(sp.status)
+    ? sp.status
+    : undefined
+  const projects = await listProjects({ status: validStatus, search: sp.search })
 
   const hasFilters =
-    (sp.status && sp.status !== "all") ||
+    (validStatus !== undefined) ||
     ((sp.search?.trim().length ?? 0) >= 2)
 
   return (
