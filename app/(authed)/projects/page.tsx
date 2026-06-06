@@ -45,7 +45,14 @@ export default async function ProjectsPage() {
               >
                 <Card className="flex h-full flex-col gap-3 p-5 transition hover:border-foreground/30">
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-medium leading-tight">{p.name}</h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="font-medium leading-tight">{p.name}</h2>
+                      {p.isJointVenture && (
+                        <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300 text-[10px] px-1.5 py-0">
+                          JV
+                        </Badge>
+                      )}
+                    </div>
                     <Badge variant="secondary">
                       {STATUS_LABEL[p.status] ?? p.status}
                     </Badge>
