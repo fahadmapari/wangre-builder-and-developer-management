@@ -1,9 +1,12 @@
 import { Suspense } from "react"
 import Link from "next/link"
+import { Home, Building2, Building, Hotel, Landmark } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { requireAuth } from "@/lib/auth/session"
 import { listProjects } from "@/lib/projects/repository"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import { NewProjectButton } from "./new-project-dialog"
 import { ProjectFilters } from "./project-filters"
 
@@ -12,6 +15,14 @@ const STATUS_LABEL: Record<string, string> = {
   under_construction: "Under construction",
   completed: "Completed",
   on_hold: "On hold",
+}
+
+function getBuildingTier(units: number): { Icon: LucideIcon; bg: string } {
+  if (units <= 12)  return { Icon: Home,      bg: "bg-amber-400 dark:bg-amber-700" }
+  if (units <= 30)  return { Icon: Building2, bg: "bg-emerald-500 dark:bg-emerald-700" }
+  if (units <= 80)  return { Icon: Building,  bg: "bg-sky-500 dark:bg-sky-700" }
+  if (units <= 200) return { Icon: Hotel,     bg: "bg-indigo-500 dark:bg-indigo-700" }
+  return                    { Icon: Landmark, bg: "bg-slate-600 dark:bg-slate-700" }
 }
 
 export default async function ProjectsPage({
