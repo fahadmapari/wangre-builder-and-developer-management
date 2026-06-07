@@ -276,18 +276,24 @@ export type Paginated<T> = {
 }
 
 export type FinancialTotals = {
-  revenue: number       // unchanged. INCLUDES transfer_in rows (Phase 5 semantics preserved).
-  expenses: number      // unchanged. INCLUDES transfer_out rows.
-  net: number           // unchanged. revenue - expenses.
-  transfersIn: number   // Phase 6 — subset of revenue: sum of transfer_in rows over the same window.
-  transfersOut: number  // Phase 6 — subset of expenses: sum of transfer_out rows over the same window.
+  revenue: number       // unchanged
+  expenses: number      // unchanged
+  net: number           // revenue - expenses (kept; global /financials view uses this)
+  capital: number       // sum of capital injections in the filter window
+  availableFunds: number // capital + revenue - expenses
+  transfersIn: number   // unchanged
+  transfersOut: number  // unchanged
 }
 
 /**
- * Computes Revenue / Expenses / Net over the filter window. Reversal rows
- * subtract from their own kind's total via $cond on reversalOf. Voided rows
- * are filtered out unless includeVoided=true, so "what you see is what you
- * sum" — ledger and tiles always agree.
+ * Computes Revenue / Expenses / Net / Capital / AvailableFunds over the filter
+ * window. Reversal rows subtract from their own kind's total via $cond on
+ * reversalOf. Voided rows are filtered out unless includeVoided=true, so
+ * "what you see is what you sum" — ledger and tiles always agree.
+ *
+ * Capital injections are fetched in parallel when no kind/category/search
+ * filter is active (they have no kind/category and are not indexed by Atlas
+ * Search).
  */
 export async function computeTotals(
   projectId: ObjectId,
@@ -296,7 +302,10 @@ export async function computeTotals(
   const db = getDb()
   const match = { ...buildLedgerMatch(filters), projectId }
   const searchStage = buildSearchStage(filters.search)
-  const pipeline: Record<string, unknown>[] = [
+  const includeCapital =
+    filters.kind === "all" && filters.category === "all" && !filters.search
+
+  const txnPipeline: Record<string, unknown>[] = [
     ...(searchStage ? [searchStage] : []),
     { $match: match },
     {
@@ -341,30 +350,50 @@ export async function computeTotals(
       },
     },
   ]
-  const [bundle] = await db
-    .collection<Transaction>("transactions")
-    .aggregate<{
-      byKind: { _id: TransactionKind; total: number }[]
-      byTransferCategory: { _id: "transfer_in" | "transfer_out"; total: number }[]
-    }>(pipeline)
-    .toArray()
+
+  const [bundle, capitalResult] = await Promise.all([
+    db
+      .collection<Transaction>("transactions")
+      .aggregate<{
+        byKind: { _id: TransactionKind; total: number }[]
+        byTransferCategory: { _id: "transfer_in" | "transfer_out"; total: number }[]
+      }>(txnPipeline)
+      .toArray(),
+    includeCapital
+      ? db
+          .collection("capitalInjections")
+          .aggregate<{ total: number }>([
+            {
+              $match: {
+                projectId,
+                occurredAt: { $gte: filters.from, $lte: endOfDay(filters.to) },
+              },
+            },
+            { $group: { _id: null, total: { $sum: "$amount" } } },
+          ])
+          .toArray()
+      : Promise.resolve([] as { total: number }[]),
+  ])
 
   let revenue = 0
   let expenses = 0
-  for (const r of bundle?.byKind ?? []) {
+  for (const r of bundle[0]?.byKind ?? []) {
     if (r._id === "income") revenue = r.total
     else if (r._id === "expense") expenses = r.total
   }
   let transfersIn = 0
   let transfersOut = 0
-  for (const r of bundle?.byTransferCategory ?? []) {
+  for (const r of bundle[0]?.byTransferCategory ?? []) {
     if (r._id === "transfer_in") transfersIn = r.total
     else if (r._id === "transfer_out") transfersOut = r.total
   }
+  const capital = capitalResult[0]?.total ?? 0
   return {
     revenue,
     expenses,
     net: revenue - expenses,
+    capital,
+    availableFunds: capital + revenue - expenses,
     transfersIn,
     transfersOut,
   }
@@ -506,6 +535,8 @@ export async function listCrossProjectTotals(
       revenue: totals.revenue,
       expenses: totals.expenses,
       net: totals.revenue - totals.expenses,
+      capital: 0,
+      availableFunds: totals.revenue - totals.expenses,
       transfersIn: totals.transfersIn,
       transfersOut: totals.transfersOut,
     })
@@ -523,6 +554,8 @@ export async function listCrossProjectTotals(
       revenue: overallRevenue,
       expenses: overallExpenses,
       net: overallRevenue - overallExpenses,
+      capital: 0,
+      availableFunds: overallRevenue - overallExpenses,
       transfersIn: overallTransfersIn,
       transfersOut: overallTransfersOut,
     },

@@ -180,7 +180,7 @@ export default async function ProjectDetailPage({
       : Promise.resolve({ rows: [], total: 0 }),
     isAdmin
       ? computeTotals(projectObjectId, filters)
-      : Promise.resolve({ revenue: 0, expenses: 0, net: 0, transfersIn: 0, transfersOut: 0 }),
+      : Promise.resolve({ revenue: 0, expenses: 0, net: 0, capital: 0, availableFunds: 0, transfersIn: 0, transfersOut: 0 }),
     listProjects(),
     isAdmin
       ? getProjectFunds(projectObjectId)
