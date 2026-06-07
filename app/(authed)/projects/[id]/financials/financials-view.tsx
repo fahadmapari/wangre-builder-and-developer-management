@@ -73,9 +73,14 @@ export function FinancialsView({
           }
         />
         <Tile
-          label="Net"
-          value={`${totals.net < 0 ? "−" : ""}₹${INR.format(Math.abs(totals.net))}`}
-          tone={totals.net < 0 ? "loss" : "gain"}
+          label="Available Funds"
+          value={`${totals.availableFunds < 0 ? "−" : ""}₹${INR.format(Math.abs(totals.availableFunds))}`}
+          subtitle={
+            totals.capital > 0
+              ? `incl. ₹${INR.format(totals.capital)} capital`
+              : null
+          }
+          tone={totals.availableFunds < 0 ? "loss" : undefined}
         />
       </div>
       <div className="flex shrink-0 items-center justify-between">
@@ -105,8 +110,8 @@ export function FinancialsView({
         {rows.length === 0 ? (
           <p className="rounded border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
             {search
-              ? "No transactions match your search."
-              : "No transactions in this window."}
+              ? "No entries match your search."
+              : "No entries in this window."}
           </p>
         ) : (
           <LedgerTable

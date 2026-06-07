@@ -47,7 +47,7 @@ function CapitalInjectionLedgerRow({ row }: { row: CapitalLedgerRow }) {
   return (
     <tr className="border-b border-border last:border-0">
       <td className="px-4 py-3 font-mono">
-        {row.occurredAt.toLocaleDateString()}
+        {row.occurredAt.toLocaleDateString("en-IN")}
       </td>
       <td className="px-4 py-3">
         <Badge

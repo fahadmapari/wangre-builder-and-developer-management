@@ -14,7 +14,7 @@ export function CollapsibleSection({
   actions,
   children,
 }: CollapsibleSectionProps) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
 
   return (
     <section className="flex flex-col gap-3">
