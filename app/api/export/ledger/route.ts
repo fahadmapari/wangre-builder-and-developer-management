@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db/client"
 import { listLedger } from "@/lib/transactions/repository"
 import { parseLedgerFilters } from "@/lib/transactions/filters"
 import { toCsvFile } from "@/lib/exports/csv"
-import type { Transaction } from "@/lib/transactions/schemas"
+import type { Transaction, CapitalLedgerRow } from "@/lib/transactions/schemas"
 
 export const dynamic = "force-dynamic"
 
@@ -64,6 +64,26 @@ function rowToCsv(t: Transaction, projectName: string) {
   ]
 }
 
+function capitalRowToCsv(r: CapitalLedgerRow, projectName: string) {
+  return [
+    r._id.toHexString(),
+    r.projectId.toHexString(),
+    projectName,
+    isoDate(r.occurredAt),
+    "capital",
+    "",
+    r.amount,
+    "Capital Injection",
+    "",
+    r.notes ?? "",
+    false,
+    "",
+    "",
+    r.createdAt.toISOString(),
+    r.createdBy.toHexString(),
+  ]
+}
+
 export async function GET(req: Request) {
   await requireAdmin()
 
@@ -89,7 +109,11 @@ export async function GET(req: Request) {
 
   const csv = toCsvFile(
     [...LEDGER_CSV_HEADERS],
-    rows.map((r) => rowToCsv(r, project.name)),
+    rows.map((r) =>
+      r._type === "capital"
+        ? capitalRowToCsv(r, project.name)
+        : rowToCsv(r, project.name)
+    ),
   )
 
   const filename = `ledger-${projectSlug(project.name)}-${isoDate(filters.from)}-${isoDate(filters.to)}.csv`

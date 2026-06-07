@@ -1,4 +1,4 @@
-import type { Transaction } from "@/lib/transactions/schemas"
+import type { FinancialLedgerRow } from "@/lib/transactions/schemas"
 import type { FinancialTotals } from "@/lib/transactions/repository"
 import { Button } from "@/components/ui/button"
 import { LedgerFilters } from "./ledger-filters"
@@ -26,7 +26,7 @@ export function FinancialsView({
   currentSearchParams,
 }: {
   projectId: string
-  rows: Transaction[]
+  rows: FinancialLedgerRow[]
   totals: FinancialTotals
   defaultFrom: string
   defaultTo: string

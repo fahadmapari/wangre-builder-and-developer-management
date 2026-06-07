@@ -1,18 +1,18 @@
 import { ObjectId } from "mongodb"
 import { Card } from "@/components/ui/card"
-import type { Transaction } from "@/lib/transactions/schemas"
+import type { FinancialLedgerRow } from "@/lib/transactions/schemas"
 import type { Unit } from "@/lib/projects/schemas"
 import { getDb } from "@/lib/db/client"
 import { LedgerRow } from "./ledger-row"
 
 async function fetchUnitsForRows(
-  rows: Transaction[],
+  rows: FinancialLedgerRow[],
 ): Promise<Map<string, string>> {
   const unitIds = Array.from(
     new Set(
       rows
-        .filter((r) => r.category === "sale" && r.unitId)
-        .map((r) => (r.unitId as ObjectId).toHexString()),
+        .filter((r) => r._type === "transaction" && r.category === "sale" && r.unitId)
+        .map((r) => (r as { unitId: ObjectId }).unitId.toHexString()),
     ),
   )
   if (unitIds.length === 0) return new Map()
@@ -38,7 +38,7 @@ export async function LedgerTable({
   otherProjectByRowId,
   linkedMaterials,
 }: {
-  rows: Transaction[]
+  rows: FinancialLedgerRow[]
   otherProjectByRowId: Map<string, string>
   linkedMaterials?: Map<
     string,
@@ -73,6 +73,28 @@ export async function LedgerTable({
         <tbody>
           {rows.map((r) => {
             const id = r._id.toHexString()
+            if (r._type === "capital") {
+              return (
+                <LedgerRow
+                  key={id}
+                  row={{
+                    _id: id,
+                    occurredAt: r.occurredAt.toISOString(),
+                    kind: "income",
+                    category: "adhoc",
+                    amount: r.amount,
+                    description: "Capital Injection",
+                    buyerName: null,
+                    notes: r.notes ?? null,
+                    voided: false,
+                    isReversal: false,
+                    transferGroupId: null,
+                    unitLabel: "",
+                    peerProjectName: null,
+                  }}
+                />
+              )
+            }
             const unitLabel =
               r.unitId && r.category === "sale"
                 ? (unitLabels.get((r.unitId as ObjectId).toHexString()) ?? "")

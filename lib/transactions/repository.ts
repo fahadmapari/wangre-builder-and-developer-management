@@ -4,7 +4,12 @@ import type { Unit, Project } from "@/lib/projects/schemas"
 import type { MoneyTransferRow } from "@/lib/transfers/schemas"
 import type { MaterialMovement } from "@/lib/materials/schemas"
 import { InsufficientStockForReversalError } from "@/lib/materials/repository"
-import type { Transaction, TransactionKind, LedgerFilters } from "./schemas"
+import type {
+  Transaction,
+  TransactionKind,
+  LedgerFilters,
+  FinancialLedgerRow,
+} from "./schemas"
 
 /**
  * Atomically marks one available unit as sold and inserts the corresponding
@@ -220,54 +225,70 @@ function endOfDay(d: Date): Date {
 /**
  * Returns the filtered ledger for a single project, paginated. Newest first.
  * Page is 1-based. Out-of-range pages return { rows: [], total }.
+ *
+ * When no kind/category/search filter is active (includeCapital=true), merges
+ * capital injection rows via $unionWith so the paginated stream is unified.
+ * Both row types are tagged with _type ("transaction" | "capital").
  */
 export async function listLedger(
   projectId: ObjectId,
   filters: LedgerFilters,
   page: number,
   pageSize: number,
-): Promise<Paginated<Transaction>> {
+): Promise<Paginated<FinancialLedgerRow>> {
   const db = getDb()
   const coll = db.collection<Transaction>("transactions")
   const match = { ...buildLedgerMatch(filters), projectId }
   const searchStage = buildSearchStage(filters.search)
   const skip = (page - 1) * pageSize
+  const includeCapital =
+    filters.kind === "all" && filters.category === "all" && !filters.search
 
-  if (searchStage) {
-    type FacetResult = {
-      rows: Transaction[]
-      total: { n: number }[]
-    }
-    const result = await coll
-      .aggregate<FacetResult>([
-        searchStage,
-        { $match: match },
-        { $sort: { occurredAt: -1, _id: -1 } },
-        {
-          $facet: {
-            rows: [{ $skip: skip }, { $limit: pageSize }],
-            total: [{ $count: "n" }],
-          },
-        },
-      ])
-      .toArray()
-    const facet = result[0]
-    return {
-      rows: facet?.rows ?? [],
-      total: facet?.total[0]?.n ?? 0,
-    }
+  type FacetResult = {
+    rows: FinancialLedgerRow[]
+    total: { n: number }[]
   }
 
-  const [rows, total] = await Promise.all([
-    coll
-      .find(match)
-      .sort({ occurredAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(pageSize)
-      .toArray(),
-    coll.countDocuments(match),
-  ])
-  return { rows, total }
+  const pipeline: Record<string, unknown>[] = [
+    ...(searchStage ? [searchStage] : []),
+    { $match: match },
+    { $addFields: { _type: "transaction" } },
+    ...(includeCapital
+      ? [
+          {
+            $unionWith: {
+              coll: "capitalInjections",
+              pipeline: [
+                {
+                  $match: {
+                    projectId,
+                    occurredAt: {
+                      $gte: filters.from,
+                      $lte: endOfDay(filters.to),
+                    },
+                  },
+                },
+                { $addFields: { _type: "capital" } },
+              ],
+            },
+          },
+        ]
+      : []),
+    { $sort: { occurredAt: -1, _id: -1 } },
+    {
+      $facet: {
+        rows: [{ $skip: skip }, { $limit: pageSize }],
+        total: [{ $count: "n" }],
+      },
+    },
+  ]
+
+  const result = await coll.aggregate<FacetResult>(pipeline).toArray()
+  const facet = result[0]
+  return {
+    rows: facet?.rows ?? [],
+    total: facet?.total[0]?.n ?? 0,
+  }
 }
 
 export type Paginated<T> = {

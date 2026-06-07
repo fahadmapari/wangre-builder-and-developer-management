@@ -17,7 +17,7 @@ import {
   computeTotals,
 } from "@/lib/transactions/repository"
 import { listProjectMaterials, listCatalog } from "@/lib/materials/repository"
-import type { Transaction } from "@/lib/transactions/schemas"
+import type { Transaction, TransactionLedgerRow } from "@/lib/transactions/schemas"
 import type { CapitalInjection } from "@/lib/projects/schemas"
 import type { Material, MaterialMovement } from "@/lib/materials/schemas"
 import {
@@ -208,9 +208,12 @@ export default async function ProjectDetailPage({
 
   const ledgerRows = ledgerResult.rows
   const ledgerTotal = ledgerResult.total
+  const transactionRows = ledgerRows.filter(
+    (r): r is TransactionLedgerRow => r._type === "transaction"
+  )
 
   // Compute peer-project lookup for transfer badge in ledger
-  const transferGroupIds = ledgerRows
+  const transferGroupIds = transactionRows
     .filter((r) => r.transferGroupId)
     .map((r) => r.transferGroupId!)
 
@@ -243,7 +246,7 @@ export default async function ProjectDetailPage({
     const peerProjectNameById = new Map(
       peerProjects.map((p) => [p._id.toHexString(), p.name])
     )
-    for (const row of ledgerRows) {
+    for (const row of transactionRows) {
       if (!row.transferGroupId) continue
       const peerId = peerProjectByGroup.get(row.transferGroupId.toHexString())
       if (!peerId) continue
@@ -258,7 +261,7 @@ export default async function ProjectDetailPage({
   // extra round trip on click. Only computed for admins (non-admins get an
   // empty ledger anyway).
   const linkedMaterials = isAdmin
-    ? await loadLinkedMaterials(ledgerRows, project.name)
+    ? await loadLinkedMaterials(transactionRows, project.name)
     : new Map<
         string,
         { name: string; unit: string; qty: number; projectName: string }
