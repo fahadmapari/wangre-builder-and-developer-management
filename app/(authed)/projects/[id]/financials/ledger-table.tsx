@@ -1,18 +1,28 @@
 import { ObjectId } from "mongodb"
 import { Card } from "@/components/ui/card"
-import type { FinancialLedgerRow } from "@/lib/transactions/schemas"
+import { Badge } from "@/components/ui/badge"
+import type {
+  FinancialLedgerRow,
+  TransactionLedgerRow,
+  CapitalLedgerRow,
+} from "@/lib/transactions/schemas"
 import type { Unit } from "@/lib/projects/schemas"
 import { getDb } from "@/lib/db/client"
 import { LedgerRow } from "./ledger-row"
 
+const INR = new Intl.NumberFormat("en-IN")
+
 async function fetchUnitsForRows(
   rows: FinancialLedgerRow[],
 ): Promise<Map<string, string>> {
+  const transactionRows = rows.filter(
+    (r): r is TransactionLedgerRow => r._type === "transaction"
+  )
   const unitIds = Array.from(
     new Set(
-      rows
-        .filter((r) => r._type === "transaction" && r.category === "sale" && r.unitId)
-        .map((r) => (r as { unitId: ObjectId }).unitId.toHexString()),
+      transactionRows
+        .filter((r) => r.category === "sale" && r.unitId)
+        .map((r) => (r.unitId as ObjectId).toHexString()),
     ),
   )
   if (unitIds.length === 0) return new Map()
@@ -33,6 +43,37 @@ async function fetchUnitsForRows(
   )
 }
 
+function CapitalInjectionLedgerRow({ row }: { row: CapitalLedgerRow }) {
+  return (
+    <tr className="border-b border-border last:border-0">
+      <td className="px-4 py-3 font-mono">
+        {row.occurredAt.toLocaleDateString()}
+      </td>
+      <td className="px-4 py-3">
+        <Badge
+          variant="outline"
+          className="border-indigo-400 text-indigo-600 dark:text-indigo-400"
+        >
+          Capital
+        </Badge>
+      </td>
+      <td className="px-4 py-3" />
+      <td className="px-4 py-3 text-right font-mono">
+        ₹{INR.format(row.amount)}
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">
+        Capital Injection
+        {row.notes ? (
+          <span className="ml-1 text-xs">— {row.notes}</span>
+        ) : null}
+      </td>
+      <td className="px-4 py-3" />
+      <td className="px-4 py-3" />
+      <td className="px-4 py-3" />
+    </tr>
+  )
+}
+
 export async function LedgerTable({
   rows,
   otherProjectByRowId,
@@ -48,7 +89,7 @@ export async function LedgerTable({
   if (rows.length === 0) {
     return (
       <Card className="grid place-items-center p-12 text-sm text-muted-foreground">
-        No transactions match these filters.
+        No entries match these filters.
       </Card>
     )
   }
@@ -72,29 +113,15 @@ export async function LedgerTable({
         </thead>
         <tbody>
           {rows.map((r) => {
-            const id = r._id.toHexString()
             if (r._type === "capital") {
               return (
-                <LedgerRow
-                  key={id}
-                  row={{
-                    _id: id,
-                    occurredAt: r.occurredAt.toISOString(),
-                    kind: "income",
-                    category: "adhoc",
-                    amount: r.amount,
-                    description: "Capital Injection",
-                    buyerName: null,
-                    notes: r.notes ?? null,
-                    voided: false,
-                    isReversal: false,
-                    transferGroupId: null,
-                    unitLabel: "",
-                    peerProjectName: null,
-                  }}
+                <CapitalInjectionLedgerRow
+                  key={r._id.toHexString()}
+                  row={r}
                 />
               )
             }
+            const id = r._id.toHexString()
             const unitLabel =
               r.unitId && r.category === "sale"
                 ? (unitLabels.get((r.unitId as ObjectId).toHexString()) ?? "")
@@ -114,10 +141,11 @@ export async function LedgerTable({
                   voided: r.voided === true,
                   isReversal: r.reversalOf != null,
                   transferGroupId:
-                    r.transferGroupId ? r.transferGroupId.toHexString() : null,
+                    r.transferGroupId
+                      ? r.transferGroupId.toHexString()
+                      : null,
                   unitLabel,
-                  peerProjectName:
-                    otherProjectByRowId.get(id) ?? null,
+                  peerProjectName: otherProjectByRowId.get(id) ?? null,
                 }}
                 linkedMaterial={linkedMaterials?.get(id)}
               />
