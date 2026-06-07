@@ -73,18 +73,15 @@ export default async function ProjectsPage({
         </Card>
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
+          {projects.map((p) => {
+            const { Icon, bg } = getBuildingTier(p.totalUnits)
+            return (
             <li key={String(p._id)}>
               <Link href={`/projects/${String(p._id)}`} className="block">
                 <Card className="flex h-full flex-col overflow-hidden transition hover:border-foreground/30">
-                  {(() => {
-                    const { Icon, bg } = getBuildingTier(p.totalUnits)
-                    return (
-                      <div className={cn("flex h-24 items-center justify-center", bg)}>
-                        <Icon className="h-12 w-12 text-white" />
-                      </div>
-                    )
-                  })()}
+                  <div className={cn("flex h-24 items-center justify-center", bg)}>
+                    <Icon className="h-12 w-12 text-white" />
+                  </div>
                   <div className="flex flex-col gap-3 p-5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5">
@@ -117,7 +114,8 @@ export default async function ProjectsPage({
                 </Card>
               </Link>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </div>
