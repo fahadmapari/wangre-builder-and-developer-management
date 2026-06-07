@@ -76,38 +76,44 @@ export default async function ProjectsPage({
           {projects.map((p) => (
             <li key={String(p._id)}>
               <Link href={`/projects/${String(p._id)}`} className="block">
-                <Card className="flex h-full flex-col gap-3 p-5 transition hover:border-foreground/30">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <h2 className="font-medium leading-tight">{p.name}</h2>
-                      {p.isJointVenture && (
-                        <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300 text-[10px] px-1.5 py-0">
-                          JV
-                        </Badge>
-                      )}
+                <Card className="flex h-full flex-col overflow-hidden transition hover:border-foreground/30">
+                  {(() => {
+                    const { Icon, bg } = getBuildingTier(p.totalUnits)
+                    return (
+                      <div className={cn("flex h-24 items-center justify-center", bg)}>
+                        <Icon className="h-12 w-12 text-white" />
+                      </div>
+                    )
+                  })()}
+                  <div className="flex flex-col gap-3 p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <h2 className="font-medium leading-tight">{p.name}</h2>
+                        {p.isJointVenture && (
+                          <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300 text-[10px] px-1.5 py-0">
+                            JV
+                          </Badge>
+                        )}
+                      </div>
+                      <Badge variant="secondary">
+                        {STATUS_LABEL[p.status] ?? p.status}
+                      </Badge>
                     </div>
-                    <Badge variant="secondary">
-                      {STATUS_LABEL[p.status] ?? p.status}
-                    </Badge>
+                    <p className="text-sm text-muted-foreground">{p.location}</p>
+                    <div className="mt-auto flex items-baseline gap-4 text-xs text-muted-foreground">
+                      <span>
+                        <span className="font-mono text-foreground">{p.totalUnits}</span>{" "}
+                        apartments
+                      </span>
+                      <span>
+                        <span className="font-mono text-foreground">{p.totalParkings}</span>{" "}
+                        parkings
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Created {p.createdAt.toLocaleDateString()}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">{p.location}</p>
-                  <div className="mt-auto flex items-baseline gap-4 text-xs text-muted-foreground">
-                    <span>
-                      <span className="font-mono text-foreground">
-                        {p.totalUnits}
-                      </span>{" "}
-                      apartments
-                    </span>
-                    <span>
-                      <span className="font-mono text-foreground">
-                        {p.totalParkings}
-                      </span>{" "}
-                      parkings
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Created {p.createdAt.toLocaleDateString()}
-                  </p>
                 </Card>
               </Link>
             </li>
