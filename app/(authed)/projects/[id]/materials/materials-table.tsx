@@ -59,7 +59,7 @@ export function MaterialsTable({
           <p>Use &ldquo;Add material&rdquo; to register one, then &ldquo;Record purchase&rdquo;.</p>
         </Card>
       ) : (
-        <Card className="min-h-0 flex-1 overflow-hidden py-0">
+        <Card className="min-h-0 flex-1 overflow-hidden border border-border py-0 ring-0">
           <div className="h-full overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">

@@ -32,7 +32,7 @@ export function CatalogTable({
     )
   }
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden border border-border ring-0">
       <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
