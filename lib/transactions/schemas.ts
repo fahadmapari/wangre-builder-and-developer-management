@@ -144,3 +144,22 @@ export type Transaction = {
   createdBy: ObjectId
   createdAt: Date
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Financials tab — unified ledger row (transactions + capital injections)
+// ──────────────────────────────────────────────────────────────────────────
+
+export type TransactionLedgerRow = Transaction & { _type: "transaction" }
+
+export type CapitalLedgerRow = {
+  _type: "capital"
+  _id: ObjectId
+  projectId: ObjectId
+  amount: number
+  occurredAt: Date
+  notes?: string
+  createdBy: ObjectId
+  createdAt: Date
+}
+
+export type FinancialLedgerRow = TransactionLedgerRow | CapitalLedgerRow
