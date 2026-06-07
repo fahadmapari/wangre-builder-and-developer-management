@@ -78,7 +78,7 @@ export default async function ProjectsPage({
             return (
             <li key={String(p._id)}>
               <Link href={`/projects/${String(p._id)}`} className="block">
-                <Card className="flex h-full flex-col overflow-hidden transition hover:border-foreground/30">
+                <Card className="h-full gap-0 pt-0 transition hover:border-foreground/30">
                   <div className={cn("flex h-24 items-center justify-center", bg)}>
                     <Icon className="h-12 w-12 text-white" />
                   </div>
