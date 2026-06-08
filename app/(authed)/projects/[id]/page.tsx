@@ -31,7 +31,6 @@ import { LastUpdatedLine } from "../../catalog/material-meta-line"
 import { EditProjectDialog } from "./edit-project-dialog"
 import { ExpandCapacityDialog } from "./expand-capacity-dialog"
 import { AddCapitalDialog } from "./add-capital-dialog"
-import { CollapsibleSection } from "./collapsible-section"
 import { ProjectTabs } from "./project-tabs"
 import { InventoryFilters } from "./inventory/inventory-filters"
 import {
@@ -280,185 +279,189 @@ export default async function ProjectDetailPage({
     unitPrice: m.unitPrice,
   }))
 
+  const summaryTab = (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <Tile label="Total apartments" value={String(project.totalUnits)} />
+      <Tile label="Total parkings" value={String(project.totalParkings)} />
+      <Tile label="Sold" value={`${soldCount} / ${totalUnitsAndParkings}`} />
+      <Tile label="Revenue" value={`₹${INR.format(revenue)}`} />
+      <Tile label="Created" value={project.createdAt.toLocaleDateString()} />
+    </div>
+  )
+
+  const capitalTab = isAdmin ? (
+    <div className="flex flex-col gap-3">
+      <div className="flex justify-end">
+        <AddCapitalDialog projectId={id} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Tile
+          label="Total capital"
+          value={`₹${INR.format(funds.totalCapital)}`}
+        />
+        <Tile label="Revenue" value={`₹${INR.format(funds.totalRevenue)}`} />
+        <Tile
+          label="Total spent"
+          value={`₹${INR.format(funds.totalSpent)}`}
+        />
+        <Tile
+          label="Available funds"
+          value={`₹${INR.format(Math.abs(funds.availableFunds))}${funds.availableFunds < 0 ? " (deficit)" : ""}`}
+          negative={funds.availableFunds < 0}
+        />
+      </div>
+      {capitalInjections.length > 0 && (
+        <div className="overflow-hidden rounded-md border border-border">
+          <div className="max-h-64 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b bg-muted">
+                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-right font-medium">Amount</th>
+                  <th className="px-3 py-2 text-left font-medium">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {capitalInjections.map((inj) => (
+                  <tr
+                    key={inj._id.toHexString()}
+                    className="border-b last:border-0"
+                  >
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {inj.occurredAt.toLocaleDateString()}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      ₹{INR.format(inj.amount)}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {inj.notes ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : undefined
+
+  const jointVentureTab =
+    isAdmin && project.isJointVenture ? (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Tile
+          label="JV units"
+          value={`${jvStats.soldJVUnits} sold / ${jvStats.totalJVUnits} total`}
+        />
+        <Tile
+          label="JV revenue (excl. from P&L)"
+          value={`₹${INR.format(jvStats.jvRevenue)}`}
+        />
+      </div>
+    ) : undefined
+
   return (
     <div className="mx-auto flex h-[calc(100svh-3.5rem)] w-full max-w-6xl flex-col overflow-hidden px-6">
-      <div className="flex shrink-0 flex-col gap-8 pb-4 pt-10">
-      <header className="flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {project.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">{project.location}</p>
-            {updaterName && project.lastUpdatedAt && (
-              <LastUpdatedLine actorName={updaterName} at={project.lastUpdatedAt} />
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">
-              {STATUS_LABEL[project.status] ?? project.status}
-            </Badge>
-            {isAdmin && (
-              <div className="flex gap-2">
-                <EditProjectDialog
-                  projectId={project._id.toHexString()}
-                  current={{
-                    name: project.name,
-                    location: project.location,
-                    status: project.status,
-                    notes: project.notes,
-                    isJointVenture: project.isJointVenture ?? false,
-                  }}
+      <div className="shrink-0 pb-4 pt-10">
+        <header className="flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {project.name}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {project.location}
+              </p>
+              {updaterName && project.lastUpdatedAt && (
+                <LastUpdatedLine
+                  actorName={updaterName}
+                  at={project.lastUpdatedAt}
                 />
-                <ExpandCapacityDialog
-                  projectId={project._id.toHexString()}
-                  current={{
-                    totalUnits: project.totalUnits,
-                    totalParkings: project.totalParkings,
-                    startingUnitNumber: project.startingUnitNumber,
-                    unitsPerFloor: project.unitsPerFloor,
-                    parkingPrefix: project.parkingPrefix,
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Tile label="Total apartments" value={String(project.totalUnits)} />
-          <Tile label="Total parkings" value={String(project.totalParkings)} />
-          <Tile
-            label="Sold"
-            value={`${soldCount} / ${totalUnitsAndParkings}`}
-          />
-          <Tile label="Revenue" value={`₹${INR.format(revenue)}`} />
-          <Tile
-            label="Created"
-            value={project.createdAt.toLocaleDateString()}
-          />
-        </div>
-      </header>
-      {isAdmin && (
-        <CollapsibleSection
-          title="Capital"
-          actions={<AddCapitalDialog projectId={id} />}
-        >
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Tile
-              label="Total capital"
-              value={`₹${INR.format(funds.totalCapital)}`}
-            />
-            <Tile
-              label="Revenue"
-              value={`₹${INR.format(funds.totalRevenue)}`}
-            />
-            <Tile
-              label="Total spent"
-              value={`₹${INR.format(funds.totalSpent)}`}
-            />
-            <Tile
-              label="Available funds"
-              value={`₹${INR.format(Math.abs(funds.availableFunds))}${funds.availableFunds < 0 ? " (deficit)" : ""}`}
-              negative={funds.availableFunds < 0}
-            />
-          </div>
-          {capitalInjections.length > 0 && (
-            <div className="overflow-hidden rounded-md border border-border">
-              <div className="max-h-64 overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10">
-                  <tr className="border-b bg-muted">
-                    <th className="px-3 py-2 text-left font-medium">Date</th>
-                    <th className="px-3 py-2 text-right font-medium">Amount</th>
-                    <th className="px-3 py-2 text-left font-medium">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {capitalInjections.map((inj) => (
-                    <tr
-                      key={inj._id.toHexString()}
-                      className="border-b last:border-0"
-                    >
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {inj.occurredAt.toLocaleDateString()}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono">
-                        ₹{INR.format(inj.amount)}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {inj.notes ?? "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
+              )}
             </div>
-          )}
-        </CollapsibleSection>
-      )}
-      {isAdmin && project.isJointVenture && (
-        <CollapsibleSection title="Joint Venture">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Tile
-              label="JV units"
-              value={`${jvStats.soldJVUnits} sold / ${jvStats.totalJVUnits} total`}
-            />
-            <Tile
-              label="JV revenue (excl. from P&L)"
-              value={`₹${INR.format(jvStats.jvRevenue)}`}
-            />
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">
+                {STATUS_LABEL[project.status] ?? project.status}
+              </Badge>
+              {isAdmin && (
+                <div className="flex gap-2">
+                  <EditProjectDialog
+                    projectId={project._id.toHexString()}
+                    current={{
+                      name: project.name,
+                      location: project.location,
+                      status: project.status,
+                      notes: project.notes,
+                      isJointVenture: project.isJointVenture ?? false,
+                    }}
+                  />
+                  <ExpandCapacityDialog
+                    projectId={project._id.toHexString()}
+                    current={{
+                      totalUnits: project.totalUnits,
+                      totalParkings: project.totalParkings,
+                      startingUnitNumber: project.startingUnitNumber,
+                      unitsPerFloor: project.unitsPerFloor,
+                      parkingPrefix: project.parkingPrefix,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        </CollapsibleSection>
-      )}
+        </header>
       </div>
       <div className="flex min-h-0 flex-1 flex-col pb-8">
-      <ProjectTabs
-        role={user.role}
-        inventory={
-          <div className="flex h-full flex-col gap-2">
-            <InventoryFilters />
-            <InventoryTable
+        <ProjectTabs
+          role={user.role}
+          isJointVenture={project.isJointVenture ?? false}
+          summary={summaryTab}
+          capital={capitalTab}
+          jointVenture={jointVentureTab}
+          inventory={
+            <div className="flex h-full flex-col gap-2">
+              <InventoryFilters />
+              <InventoryTable
+                projectId={id}
+                role={user.role}
+                searchParams={sp}
+                page={parsePage(sp.unitsPage)}
+                pageSize={UNITS_PAGE_SIZE}
+                currentSearchParams={sp}
+                isJointVentureProject={project.isJointVenture ?? false}
+              />
+            </div>
+          }
+          materials={
+            <MaterialsTable
               projectId={id}
               role={user.role}
-              searchParams={sp}
-              page={parsePage(sp.unitsPage)}
-              pageSize={UNITS_PAGE_SIZE}
-              currentSearchParams={sp}
-              isJointVentureProject={project.isJointVenture ?? false}
-            />
-          </div>
-        }
-        materials={
-          <MaterialsTable
-            projectId={id}
-            role={user.role}
-            rows={materialRows}
-            catalog={catalogForPicker}
-            projects={projectsForPicker}
-          />
-        }
-        financials={
-          isAdmin ? (
-            <FinancialsView
-              projectId={id}
-              rows={ledgerRows}
-              totals={totals}
-              defaultFrom={defaultFromIso}
-              defaultTo={defaultToIso}
+              rows={materialRows}
+              catalog={catalogForPicker}
               projects={projectsForPicker}
-              otherProjectByRowId={otherProjectByRowId}
-              linkedMaterials={linkedMaterials}
-              search={filters.search}
-              ledgerExportHref={ledgerExportHref}
-              page={page}
-              pageSize={LEDGER_PAGE_SIZE}
-              total={ledgerTotal}
-              currentSearchParams={sp}
             />
-          ) : undefined
-        }
-      />
+          }
+          financials={
+            isAdmin ? (
+              <FinancialsView
+                projectId={id}
+                rows={ledgerRows}
+                totals={totals}
+                defaultFrom={defaultFromIso}
+                defaultTo={defaultToIso}
+                projects={projectsForPicker}
+                otherProjectByRowId={otherProjectByRowId}
+                linkedMaterials={linkedMaterials}
+                search={filters.search}
+                ledgerExportHref={ledgerExportHref}
+                page={page}
+                pageSize={LEDGER_PAGE_SIZE}
+                total={ledgerTotal}
+                currentSearchParams={sp}
+              />
+            ) : undefined
+          }
+        />
       </div>
     </div>
   )
