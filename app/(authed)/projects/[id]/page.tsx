@@ -6,7 +6,6 @@ import {
   getProject,
   listProjects,
   getProjectFunds,
-  listCapitalInjections,
   getProjectJVStats,
   type ProjectFunds,
   type ProjectJVStats,
@@ -18,7 +17,6 @@ import {
 } from "@/lib/transactions/repository"
 import { listProjectMaterials, listCatalog } from "@/lib/materials/repository"
 import type { Transaction, TransactionLedgerRow } from "@/lib/transactions/schemas"
-import type { CapitalInjection } from "@/lib/projects/schemas"
 import type { Material, MaterialMovement } from "@/lib/materials/schemas"
 import {
   parseLedgerFilters,
@@ -166,7 +164,6 @@ export default async function ProjectDetailPage({
     totals,
     allProjects,
     funds,
-    capitalInjections,
     jvStats,
   ] = await Promise.all([
     getProject(id),
@@ -184,9 +181,6 @@ export default async function ProjectDetailPage({
     isAdmin
       ? getProjectFunds(projectObjectId)
       : Promise.resolve<ProjectFunds>({ totalCapital: 0, totalRevenue: 0, totalSpent: 0, availableFunds: 0, jvRevenue: 0 }),
-    isAdmin
-      ? listCapitalInjections(projectObjectId)
-      : Promise.resolve<CapitalInjection[]>([]),
     isAdmin
       ? getProjectJVStats(projectObjectId)
       : Promise.resolve<ProjectJVStats>({ totalJVUnits: 0, soldJVUnits: 0, jvRevenue: 0 }),
@@ -310,39 +304,6 @@ export default async function ProjectDetailPage({
           negative={funds.availableFunds < 0}
         />
       </div>
-      {capitalInjections.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-border">
-          <div className="max-h-64 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b bg-muted">
-                  <th className="px-3 py-2 text-left font-medium">Date</th>
-                  <th className="px-3 py-2 text-right font-medium">Amount</th>
-                  <th className="px-3 py-2 text-left font-medium">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {capitalInjections.map((inj) => (
-                  <tr
-                    key={inj._id.toHexString()}
-                    className="border-b last:border-0"
-                  >
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {inj.occurredAt.toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      ₹{INR.format(inj.amount)}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {inj.notes ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   ) : undefined
 

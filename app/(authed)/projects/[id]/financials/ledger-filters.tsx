@@ -51,6 +51,36 @@ export function LedgerFilters({
     <div className="flex flex-col gap-3 pb-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="search">Search</Label>
+          <div className="relative flex w-full sm:w-72">
+            <Input
+              id="search"
+              type="search"
+              placeholder="description, buyer, notes..."
+              value={search.value}
+              maxLength={200}
+              className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+              onChange={(e) => search.onChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  search.flush()
+                }
+              }}
+            />
+            {search.value.length > 0 ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={search.clear}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="from">From</Label>
           <Input
             id="from"
@@ -67,36 +97,6 @@ export function LedgerFilters({
             value={to}
             onChange={(e) => setParam("to", e.target.value)}
           />
-        </div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="search">Search</Label>
-        <div className="relative flex w-full sm:w-72">
-          <Input
-            id="search"
-            type="search"
-            placeholder="description, buyer, notes..."
-            value={search.value}
-            maxLength={200}
-            className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-            onChange={(e) => search.onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                search.flush()
-              }
-            }}
-          />
-          {search.value.length > 0 ? (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={search.clear}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              ✕
-            </button>
-          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-4">
