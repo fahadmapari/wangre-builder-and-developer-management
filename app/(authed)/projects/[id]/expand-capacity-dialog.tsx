@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useState } from "react"
+import { useServerAction } from "@/lib/hooks"
 import {
   Dialog,
   DialogContent,
@@ -68,8 +69,15 @@ export function ExpandCapacityDialog({ projectId, current }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [addUnits, setAddUnits] = useState("0")
   const [addParkings, setAddParkings] = useState("0")
-  const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+
+  const { run, isPending, errorMsg, setErrorMsg } = useServerAction(
+    expandProjectCapacity,
+    {
+      refresh: false,
+      onSuccess: () => handleClose(),
+      onError: () => setConfirming(false),
+    }
+  )
 
   const numUnits = Math.max(0, parseInt(addUnits, 10) || 0)
   const numParkings = Math.max(0, parseInt(addParkings, 10) || 0)
@@ -95,28 +103,19 @@ export function ExpandCapacityDialog({ projectId, current }: Props) {
     [current.totalParkings, numParkings, current.parkingPrefix]
   )
 
-  const handleClose = () => {
+  function handleClose() {
     setOpen(false)
     setConfirming(false)
     setAddUnits("0")
     setAddParkings("0")
-    setError(null)
+    setErrorMsg(null)
   }
 
-  const handleSubmit = () => {
-    setError(null)
-    startTransition(async () => {
-      const res = await expandProjectCapacity({
-        projectId,
-        additionalUnits: numUnits,
-        additionalParkings: numParkings,
-      })
-      if (res.ok) {
-        handleClose()
-      } else {
-        setError(res.error)
-        setConfirming(false)
-      }
+  function handleSubmit() {
+    run({
+      projectId,
+      additionalUnits: numUnits,
+      additionalParkings: numParkings,
     })
   }
 
@@ -172,14 +171,14 @@ export function ExpandCapacityDialog({ projectId, current }: Props) {
                 </p>
               )}
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
             <DialogFooter>
-              <Button variant="ghost" onClick={handleClose} disabled={pending}>
+              <Button variant="ghost" onClick={handleClose} disabled={isPending}>
                 Cancel
               </Button>
               <Button
                 onClick={() => setConfirming(true)}
-                disabled={pending || totalAdding === 0}
+                disabled={isPending || totalAdding === 0}
               >
                 Continue
               </Button>
@@ -205,17 +204,17 @@ export function ExpandCapacityDialog({ projectId, current }: Props) {
               </ul>
               <p className="mt-2">This cannot be undone.</p>
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
             <DialogFooter>
               <Button
                 variant="ghost"
                 onClick={() => setConfirming(false)}
-                disabled={pending}
+                disabled={isPending}
               >
                 Back
               </Button>
-              <Button onClick={handleSubmit} disabled={pending}>
-                {pending ? "Creating…" : "Confirm"}
+              <Button onClick={handleSubmit} disabled={isPending}>
+                {isPending ? "Creating…" : "Confirm"}
               </Button>
             </DialogFooter>
           </div>

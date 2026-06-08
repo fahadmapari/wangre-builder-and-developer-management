@@ -7,6 +7,9 @@ import type { ActionResult } from "@/lib/projects/schemas"
 export type UseServerActionOptions<TData> = {
   /** Called with the action's `data` on success, before the optional refresh. */
   onSuccess?: (data: TData) => void
+  /** Called on failure, after errorMsg/errorField are set. For on-error side
+   *  effects (e.g. reverting a confirm step) without a setState-in-effect. */
+  onError?: (error: string, field: string | null) => void
   /** Call router.refresh() on success. Default true. Set false where the
    *  component relies solely on the action's revalidatePath. */
   refresh?: boolean
@@ -23,7 +26,7 @@ export function useServerAction<TArgs, TData>(
   action: (args: TArgs) => Promise<ActionResult<TData>>,
   options: UseServerActionOptions<TData> = {},
 ) {
-  const { onSuccess, refresh = true } = options
+  const { onSuccess, onError, refresh = true } = options
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -35,8 +38,10 @@ export function useServerAction<TArgs, TData>(
     startTransition(async () => {
       const result = await action(args)
       if (!result.ok) {
+        const field = result.field ?? null
         setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
+        setErrorField(field)
+        onError?.(result.error, field)
         return
       }
       onSuccess?.(result.data)
