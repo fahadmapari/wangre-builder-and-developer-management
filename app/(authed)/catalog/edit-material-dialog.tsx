@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useDisclosure, useFormFields, useServerAction } from "@/lib/hooks"
+import { Field } from "@/components/form-field"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -60,16 +59,16 @@ type FormState = {
 }
 
 export function EditMaterialButton({ material }: { material: EditableMaterial }) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="outline" onClick={() => onOpenChange(true)}>
         Edit
       </Button>
       <EditMaterialDialog
-        key={open ? `open-${material._id}` : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
         material={material}
       />
     </>
@@ -85,12 +84,7 @@ function EditMaterialDialog({
   onOpenChange: (next: boolean) => void
   material: EditableMaterial
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     name: material.name,
     unit: material.unit,
     unitOther: material.unitOther ?? "",
@@ -98,13 +92,11 @@ function EditMaterialDialog({
     notes: material.notes ?? "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(updateMaterial, {
+    onSuccess: () => onOpenChange(false),
+  })
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
     // Only include unit/unitOther in the payload when they actually changed.
     // The repository's unit-change guard treats any non-undefined `unit` or
     // `unitOther` as an attempted change and would otherwise block every
@@ -113,23 +105,14 @@ function EditMaterialDialog({
     const currentOther = material.unit === "other" ? (material.unitOther ?? "") : ""
     const unitChanged =
       form.unit !== material.unit || submittedOther !== currentOther
-    startTransition(async () => {
-      const result = await updateMaterial({
-        materialId: material._id,
-        name: form.name,
-        ...(unitChanged
-          ? { unit: form.unit, unitOther: submittedOther }
-          : {}),
-        unitPrice: form.unitPrice === "" ? null : Number(form.unitPrice),
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      materialId: material._id,
+      name: form.name,
+      ...(unitChanged
+        ? { unit: form.unit, unitOther: submittedOther }
+        : {}),
+      unitPrice: form.unitPrice === "" ? null : Number(form.unitPrice),
+      notes: form.notes,
     })
   }
 
@@ -246,25 +229,5 @@ function EditMaterialDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }

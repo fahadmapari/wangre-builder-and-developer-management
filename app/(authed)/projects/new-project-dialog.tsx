@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useDisclosure, useFormFields, useServerAction } from "@/lib/hooks"
+import { Field } from "@/components/form-field"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -60,16 +62,16 @@ const INITIAL: FormState = {
 }
 
 export function NewProjectButton({ variant }: { variant?: "cta" }) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
       <Button
-        onClick={() => setOpen(true)}
+        onClick={() => onOpenChange(true)}
         size={variant === "cta" ? "default" : "sm"}
       >
         New project
       </Button>
-      <NewProjectDialog key={open ? "open" : "closed"} open={open} onOpenChange={setOpen} />
+      <NewProjectDialog key={contentKey} open={open} onOpenChange={onOpenChange} />
     </>
   )
 }
@@ -82,33 +84,22 @@ function NewProjectDialog({
   onOpenChange: (next: boolean) => void
 }) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
   const [advanced, setAdvanced] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(INITIAL)
+  const [form, set] = useFormFields<FormState>(INITIAL)
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(createProject, {
+    refresh: false,
+    onSuccess: (data) => {
+      onOpenChange(false)
+      router.push(`/projects/${data.projectId}`)
+    },
+  })
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const payload = {
-        ...form,
-        initialCapital:
-          form.initialCapital !== "" ? Number(form.initialCapital) : undefined,
-      }
-      const result = await createProject(payload)
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.push(`/projects/${result.data.projectId}`)
+    run({
+      ...form,
+      initialCapital:
+        form.initialCapital !== "" ? Number(form.initialCapital) : undefined,
     })
   }
 
@@ -333,25 +324,5 @@ function NewProjectDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }

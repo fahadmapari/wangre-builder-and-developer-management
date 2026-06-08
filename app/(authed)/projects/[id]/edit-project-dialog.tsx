@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useDisclosure, useServerAction } from "@/lib/hooks"
 import {
   Dialog,
   DialogContent,
@@ -44,20 +44,21 @@ const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
 ]
 
 export function EditProjectDialog({ projectId, current }: Props) {
-  const [open, setOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const { open, onOpenChange, contentKey } = useDisclosure()
+  const { run, isPending, errorMsg, errorField } = useServerAction(updateProject, {
+    refresh: false,
+    onSuccess: () => onOpenChange(false),
+  })
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           Edit project
         </Button>
       </DialogTrigger>
       <DialogContent
-        key={open ? `open-${projectId}` : "closed"}
+        key={contentKey}
         className="sm:max-w-md"
       >
         <DialogHeader>
@@ -68,25 +69,15 @@ export function EditProjectDialog({ projectId, current }: Props) {
         </DialogHeader>
         <form
           action={(formData) => {
-            setError(null)
-            setErrorField(null)
-            startTransition(async () => {
-              const raw = {
-                projectId,
-                name: String(formData.get("name") ?? ""),
-                location: String(formData.get("location") ?? ""),
-                status: String(formData.get("status") ?? "") as ProjectStatus,
-                notes: String(formData.get("notes") ?? ""),
-                isJointVenture: formData.get("isJointVenture") === "on",
-              }
-              const res = await updateProject(raw)
-              if (res.ok) {
-                setOpen(false)
-              } else {
-                setError(res.error)
-                setErrorField(res.field ?? null)
-              }
-            })
+            const raw = {
+              projectId,
+              name: String(formData.get("name") ?? ""),
+              location: String(formData.get("location") ?? ""),
+              status: String(formData.get("status") ?? "") as ProjectStatus,
+              notes: String(formData.get("notes") ?? ""),
+              isJointVenture: formData.get("isJointVenture") === "on",
+            }
+            run(raw)
           }}
           className="space-y-4"
         >
@@ -100,7 +91,7 @@ export function EditProjectDialog({ projectId, current }: Props) {
               required
             />
             {errorField === "name" && (
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600">{errorMsg}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -113,7 +104,7 @@ export function EditProjectDialog({ projectId, current }: Props) {
               required
             />
             {errorField === "location" && (
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600">{errorMsg}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -151,23 +142,23 @@ export function EditProjectDialog({ projectId, current }: Props) {
               rows={3}
             />
             {errorField === "notes" && (
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600">{errorMsg}</p>
             )}
           </div>
-          {error && !errorField && (
-            <p className="text-sm text-red-600">{error}</p>
+          {errorMsg && !errorField && (
+            <p className="text-sm text-red-600">{errorMsg}</p>
           )}
           <DialogFooter>
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setOpen(false)}
-              disabled={pending}
+              onClick={() => onOpenChange(false)}
+              disabled={isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save"}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </form>

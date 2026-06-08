@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useDisclosure, useFormFields, useServerAction } from "@/lib/hooks"
+import { Field } from "@/components/form-field"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -48,14 +47,14 @@ type FormState = {
 }
 
 export function NewMaterialButton() {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button onClick={() => setOpen(true)}>New material</Button>
+      <Button onClick={() => onOpenChange(true)}>New material</Button>
       <NewMaterialDialog
-        key={open ? "open" : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
       />
     </>
   )
@@ -68,12 +67,7 @@ function NewMaterialDialog({
   open: boolean
   onOpenChange: (next: boolean) => void
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     name: "",
     unit: "bag",
     unitOther: "",
@@ -81,28 +75,17 @@ function NewMaterialDialog({
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(createMaterial, {
+    onSuccess: () => onOpenChange(false),
+  })
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await createMaterial({
-        name: form.name,
-        unit: form.unit,
-        unitOther: form.unit === "other" ? form.unitOther : undefined,
-        unitPrice: form.unitPrice === "" ? null : Number(form.unitPrice),
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      name: form.name,
+      unit: form.unit,
+      unitOther: form.unit === "other" ? form.unitOther : undefined,
+      unitPrice: form.unitPrice === "" ? null : Number(form.unitPrice),
+      notes: form.notes,
     })
   }
 
@@ -220,25 +203,5 @@ function NewMaterialDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }

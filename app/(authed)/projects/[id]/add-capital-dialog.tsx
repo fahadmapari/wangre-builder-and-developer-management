@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
+import { useServerAction } from "@/lib/hooks"
 import {
   Dialog,
   DialogContent,
@@ -25,14 +26,20 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
   const [amount, setAmount] = useState("")
   const [occurredAt, setOccurredAt] = useState(todayIso)
   const [notes, setNotes] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+
+  const { run, isPending, errorMsg, setErrorMsg } = useServerAction(addCapital, {
+    refresh: false,
+    onSuccess: () => {
+      reset()
+      setOpen(false)
+    },
+  })
 
   function reset() {
     setAmount("")
     setOccurredAt(todayIso())
     setNotes("")
-    setError(null)
+    setErrorMsg(null)
   }
 
   function handleOpenChange(next: boolean) {
@@ -41,20 +48,11 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
   }
 
   function handleSubmit() {
-    setError(null)
-    startTransition(async () => {
-      const result = await addCapital({
-        projectId,
-        amount: Number(amount),
-        occurredAt: (() => { const [y, m, d] = occurredAt.split("-").map(Number); return new Date(y, m - 1, d) })(),
-        notes,
-      })
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      reset()
-      setOpen(false)
+    run({
+      projectId,
+      amount: Number(amount),
+      occurredAt: (() => { const [y, m, d] = occurredAt.split("-").map(Number); return new Date(y, m - 1, d) })(),
+      notes,
     })
   }
 
@@ -89,7 +87,7 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
               placeholder="e.g. 5000000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              disabled={pending}
+              disabled={isPending}
               autoFocus
             />
           </div>
@@ -100,7 +98,7 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
               type="date"
               value={occurredAt}
               onChange={(e) => setOccurredAt(e.target.value)}
-              disabled={pending}
+              disabled={isPending}
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -114,12 +112,12 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
               placeholder="e.g. Second tranche"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              disabled={pending}
+              disabled={isPending}
             />
           </div>
-          {error && (
+          {errorMsg && (
             <p className="text-sm text-destructive" role="alert">
-              {error}
+              {errorMsg}
             </p>
           )}
           <DialogFooter>
@@ -127,12 +125,12 @@ export function AddCapitalDialog({ projectId }: { projectId: string }) {
               type="button"
               variant="outline"
               onClick={() => handleOpenChange(false)}
-              disabled={pending}
+              disabled={isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || !amount}>
-              {pending ? "Adding…" : "Add funds"}
+            <Button type="submit" disabled={isPending || !amount}>
+              {isPending ? "Adding…" : "Add funds"}
             </Button>
           </DialogFooter>
         </form>
