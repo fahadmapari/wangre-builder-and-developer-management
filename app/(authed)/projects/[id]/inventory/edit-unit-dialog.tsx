@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useTransition } from "react"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { editUnit } from "./actions"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useServerAction } from "@/lib/hooks"
 
 type Props = {
   unitId: string
@@ -40,9 +40,13 @@ export function EditUnitDialog({
   isJointVentureProject,
   current,
 }: Props) {
-  const [error, setError] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const { run, isPending, errorMsg: error, errorField } = useServerAction(
+    editUnit,
+    {
+      refresh: false,
+      onSuccess: () => onOpenChange(false),
+    },
+  )
 
   const isSold = current.status === "sold"
 
@@ -62,30 +66,20 @@ export function EditUnitDialog({
         </DialogHeader>
         <form
           action={(formData) => {
-            setError(null)
-            setErrorField(null)
-            startTransition(async () => {
-              const raw: Record<string, unknown> = {
-                unitId,
-                number: String(formData.get("number") ?? ""),
-                floor: formData.get("floor"),
-                areaSqft: formData.get("areaSqft"),
-                notes: String(formData.get("notes") ?? ""),
-              }
-              if (!isSold) {
-                raw.salePrice = formData.get("salePrice")
-              }
-              if (isJointVentureProject && current.type === "apartment") {
-                raw.isJointVentureUnit = formData.get("isJointVentureUnit") === "on"
-              }
-              const res = await editUnit(raw)
-              if (res.ok) {
-                onOpenChange(false)
-              } else {
-                setError(res.error)
-                setErrorField(res.field ?? null)
-              }
-            })
+            const raw: Record<string, unknown> = {
+              unitId,
+              number: String(formData.get("number") ?? ""),
+              floor: formData.get("floor"),
+              areaSqft: formData.get("areaSqft"),
+              notes: String(formData.get("notes") ?? ""),
+            }
+            if (!isSold) {
+              raw.salePrice = formData.get("salePrice")
+            }
+            if (isJointVentureProject && current.type === "apartment") {
+              raw.isJointVentureUnit = formData.get("isJointVentureUnit") === "on"
+            }
+            run(raw)
           }}
           className="space-y-4"
         >
@@ -181,12 +175,12 @@ export function EditUnitDialog({
               type="button"
               variant="ghost"
               onClick={() => onOpenChange(false)}
-              disabled={pending}
+              disabled={isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save"}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </form>

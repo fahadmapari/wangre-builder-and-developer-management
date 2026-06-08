@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,9 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { markUnitSold } from "./actions"
+import { useServerAction, useDisclosure, useFormFields } from "@/lib/hooks"
+import { Field } from "@/components/form-field"
 
 type FormState = {
   salePrice: number
@@ -49,7 +49,7 @@ export function MarkSoldButton({
   unitType: "apartment" | "parking"
   unitNumber: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useDisclosure()
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
@@ -85,13 +85,9 @@ function MarkSoldDialog({
   unitType: "apartment" | "parking"
   unitNumber: string
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
   const [descriptionTouched, setDescriptionTouched] = useState(false)
 
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     salePrice: 0,
     buyerName: "",
     saleDate: isoDateToday(),
@@ -99,9 +95,12 @@ function MarkSoldDialog({
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    markUnitSold,
+    {
+      onSuccess: () => onOpenChange(false),
+    },
+  )
 
   function onBuyerBlur() {
     if (descriptionTouched) return
@@ -109,25 +108,14 @@ function MarkSoldDialog({
   }
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await markUnitSold({
-        projectId,
-        unitId,
-        salePrice: form.salePrice,
-        buyerName: form.buyerName,
-        saleDate: form.saleDate,
-        description: form.description,
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      projectId,
+      unitId,
+      salePrice: form.salePrice,
+      buyerName: form.buyerName,
+      saleDate: form.saleDate,
+      description: form.description,
+      notes: form.notes,
     })
   }
 
@@ -239,25 +227,5 @@ function MarkSoldDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }
