@@ -1,7 +1,5 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,7 +10,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -21,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Field } from "@/components/form-field"
+import { useDisclosure, useFormFields, useServerAction } from "@/lib/hooks"
 import type { MaterialUnit } from "@/lib/materials/schemas"
 import { createMaterial } from "@/app/(authed)/catalog/actions"
 
@@ -47,16 +46,16 @@ type FormState = {
 }
 
 export function AddMaterialButton() {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" onClick={() => onOpenChange(true)}>
         Add material
       </Button>
       <AddMaterialDialog
-        key={open ? "open" : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
       />
     </>
   )
@@ -69,41 +68,26 @@ function AddMaterialDialog({
   open: boolean
   onOpenChange: (next: boolean) => void
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     name: "",
     unit: "bag",
     unitOther: "",
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    createMaterial,
+    {
+      onSuccess: () => onOpenChange(false),
+    },
+  )
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      // FM-safe: no unitPrice field sent. Action layer strips defensively if
-      // an FM submission somehow includes it.
-      const result = await createMaterial({
-        name: form.name,
-        unit: form.unit,
-        unitOther: form.unit === "other" ? form.unitOther : undefined,
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      name: form.name,
+      unit: form.unit,
+      unitOther: form.unit === "other" ? form.unitOther : undefined,
+      notes: form.notes,
     })
   }
 
@@ -205,25 +189,5 @@ function AddMaterialDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }

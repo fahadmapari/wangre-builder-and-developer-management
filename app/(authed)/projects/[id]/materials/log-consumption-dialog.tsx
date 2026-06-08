@@ -1,7 +1,5 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,8 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Field } from "@/components/form-field"
+import { useDisclosure, useFormFields, useServerAction } from "@/lib/hooks"
 import { logConsumption } from "./actions"
 
 type FormState = {
@@ -40,16 +39,16 @@ export function LogConsumptionButton({
   unitLabel: string
   stockOnHand: number
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="outline" onClick={() => onOpenChange(true)}>
         Log use
       </Button>
       <LogConsumptionDialog
-        key={open ? `open-${materialId}` : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
         projectId={projectId}
         materialId={materialId}
         materialName={materialName}
@@ -77,41 +76,28 @@ function LogConsumptionDialog({
   unitLabel: string
   stockOnHand: number
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     qty: "",
     purpose: "",
     occurredAt: isoDateToday(),
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    logConsumption,
+    {
+      onSuccess: () => onOpenChange(false),
+    },
+  )
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await logConsumption({
-        projectId,
-        materialId,
-        qty: form.qty,
-        purpose: form.purpose,
-        occurredAt: form.occurredAt,
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      projectId,
+      materialId,
+      qty: form.qty,
+      purpose: form.purpose,
+      occurredAt: form.occurredAt,
+      notes: form.notes,
     })
   }
 
@@ -205,25 +191,5 @@ function LogConsumptionDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }

@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -21,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Field } from "@/components/form-field"
+import { useDisclosure, useFormFields, useServerAction } from "@/lib/hooks"
 import { recordPurchase } from "./actions"
 
 export type CatalogPickerEntry = {
@@ -62,16 +62,16 @@ export function RecordPurchaseButton({
   unitLabel: string
   defaultUnitPrice: number | null
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" onClick={() => onOpenChange(true)}>
         Record purchase
       </Button>
       <RecordPurchaseDialog
-        key={open ? `open-${materialId}` : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
         projectId={projectId}
         materialId={materialId}
         materialName={materialName}
@@ -99,12 +99,7 @@ function RecordPurchaseDialog({
   unitLabel: string
   defaultUnitPrice: number | null
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     qty: "",
     unitPriceAtMovement:
       defaultUnitPrice != null ? String(defaultUnitPrice) : "",
@@ -112,33 +107,25 @@ function RecordPurchaseDialog({
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    recordPurchase,
+    {
+      onSuccess: () => onOpenChange(false),
+    },
+  )
 
   const qtyNum = Number(form.qty) || 0
   const priceNum = Number(form.unitPriceAtMovement) || 0
   const computedAmount = Math.round(qtyNum * priceNum)
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await recordPurchase({
-        projectId,
-        materialId,
-        qty: form.qty,
-        unitPriceAtMovement: form.unitPriceAtMovement,
-        occurredAt: form.occurredAt,
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      projectId,
+      materialId,
+      qty: form.qty,
+      unitPriceAtMovement: form.unitPriceAtMovement,
+      occurredAt: form.occurredAt,
+      notes: form.notes,
     })
   }
 
@@ -241,26 +228,6 @@ function RecordPurchaseDialog({
   )
 }
 
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
-  )
-}
-
 // ──────────────────────────────────────────────────────────────────────────
 // Top-level "Record purchase" button — opens a dialog with a material picker.
 // Used when no per-row button exists yet (the bootstrap case where a project
@@ -275,14 +242,14 @@ export function TopLevelRecordPurchaseButton({
   projectId: string
   catalog: CatalogPickerEntry[]
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button onClick={() => setOpen(true)}>Record purchase</Button>
+      <Button onClick={() => onOpenChange(true)}>Record purchase</Button>
       <TopLevelPurchaseDialog
-        key={open ? "open" : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
         projectId={projectId}
         catalog={catalog}
       />
@@ -301,21 +268,18 @@ function TopLevelPurchaseDialog({
   projectId: string
   catalog: CatalogPickerEntry[]
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
   const [materialId, setMaterialId] = useState<string>("")
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     qty: "",
     unitPriceAtMovement: "",
     occurredAt: isoDateToday(),
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField, setErrorMsg, setErrorField } =
+    useServerAction(recordPurchase, {
+      onSuccess: () => onOpenChange(false),
+    })
 
   const selected = catalog.find((m) => m.materialId === materialId) ?? null
   const unitLabel = selected ? unitLabelFor(selected) : ""
@@ -335,29 +299,18 @@ function TopLevelPurchaseDialog({
   const computedAmount = Math.round(qtyNum * priceNum)
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
     if (!materialId) {
       setErrorMsg("Pick a material")
       setErrorField("materialId")
       return
     }
-    startTransition(async () => {
-      const result = await recordPurchase({
-        projectId,
-        materialId,
-        qty: form.qty,
-        unitPriceAtMovement: form.unitPriceAtMovement,
-        occurredAt: form.occurredAt,
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      projectId,
+      materialId,
+      qty: form.qty,
+      unitPriceAtMovement: form.unitPriceAtMovement,
+      occurredAt: form.occurredAt,
+      notes: form.notes,
     })
   }
 
