@@ -1,7 +1,6 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useUrlFilters, useDebouncedSearchParam } from "@/lib/hooks"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,63 +32,20 @@ export function LedgerFilters({
   defaultFrom: string
   defaultTo: string
 }) {
-  const router = useRouter()
-  const sp = useSearchParams()
-  const [, startTransition] = useTransition()
+  const { get, setParam, setParams } = useUrlFilters(["page"])
 
-  const from = sp.get("from") ?? defaultFrom
-  const to = sp.get("to") ?? defaultTo
-  const kind = sp.get("kind") ?? "all"
-  const category = sp.get("category") ?? "all"
-  const voided = sp.get("voided") ?? "active"
+  const from = get("from", defaultFrom)
+  const to = get("to", defaultTo)
+  const kind = get("kind", "all")
+  const category = get("category", "all")
+  const voided = get("voided", "active")
 
-  const initialSearch = sp.get("search") ?? ""
-  const [searchValue, setSearchValue] = useState(initialSearch)
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Clean up the timer on unmount so a debounced fire after navigation is a no-op.
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    }
-  }, [])
-
-  function applySearch(next: string) {
-    const trimmed = next.trim()
-    const params = new URLSearchParams(sp.toString())
-    params.delete("page")
-    if (trimmed.length >= 2) params.set("search", trimmed)
-    else params.delete("search")
-    startTransition(() => {
-      router.replace(`?${params.toString()}`, { scroll: false })
-    })
-  }
-
-  function onSearchChange(next: string) {
-    setSearchValue(next)
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = setTimeout(() => applySearch(next), 350)
-  }
-
-  function flushSearch() {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    applySearch(searchValue)
-  }
-
-  function clearSearch() {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    setSearchValue("")
-    applySearch("")
-  }
-
-  function setParam(key: string, value: string) {
-    const next = new URLSearchParams(sp.toString())
-    next.delete("page")
-    next.set(key, value)
-    startTransition(() => {
-      router.replace(`?${next.toString()}`, { scroll: false })
-    })
-  }
+  const search = useDebouncedSearchParam({
+    initial: get("search"),
+    apply: (v) => setParams({ search: v || null }),
+    delay: 350,
+    minLength: 2,
+  })
 
   return (
     <div className="flex flex-col gap-3 pb-3">
@@ -120,22 +76,22 @@ export function LedgerFilters({
             id="search"
             type="search"
             placeholder="description, buyer, notes..."
-            value={searchValue}
+            value={search.value}
             maxLength={200}
             className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => search.onChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault()
-                flushSearch()
+                search.flush()
               }
             }}
           />
-          {searchValue.length > 0 ? (
+          {search.value.length > 0 ? (
             <button
               type="button"
               aria-label="Clear search"
-              onClick={clearSearch}
+              onClick={search.clear}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               ✕

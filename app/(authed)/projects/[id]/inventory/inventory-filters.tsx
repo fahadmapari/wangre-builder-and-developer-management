@@ -1,7 +1,6 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useTransition } from "react"
+import { useUrlFilters } from "@/lib/hooks"
 import { Button } from "@/components/ui/button"
 
 const TYPE_OPTIONS = [
@@ -17,21 +16,10 @@ const STATUS_OPTIONS = [
 ] as const
 
 export function InventoryFilters() {
-  const router = useRouter()
-  const sp = useSearchParams()
-  const [, startTransition] = useTransition()
+  const { get, setParam } = useUrlFilters(["unitsPage"])
 
-  const type = sp.get("type") ?? "apartment"
-  const status = sp.get("status") ?? "available"
-
-  function setParam(key: "type" | "status", value: string) {
-    const next = new URLSearchParams(sp.toString())
-    next.delete("unitsPage")
-    next.set(key, value)
-    startTransition(() => {
-      router.replace(`?${next.toString()}`, { scroll: false })
-    })
-  }
+  const type = get("type", "apartment")
+  const status = get("status", "available")
 
   return (
     <div className="flex flex-wrap items-center gap-4 pb-3">

@@ -1,7 +1,6 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useTransition } from "react"
+import { useUrlFilters } from "@/lib/hooks"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -12,24 +11,15 @@ export function GlobalFilters({
   defaultFrom: string
   defaultTo: string
 }) {
-  const router = useRouter()
-  const sp = useSearchParams()
-  const [, startTransition] = useTransition()
+  const { get, setParam } = useUrlFilters([
+    "page",
+    "moneyPage",
+    "materialPage",
+    "unitsPage",
+  ])
 
-  const from = sp.get("from") ?? defaultFrom
-  const to = sp.get("to") ?? defaultTo
-
-  function setParam(key: string, value: string) {
-    const next = new URLSearchParams(sp.toString())
-    next.delete("page")
-    next.delete("moneyPage")
-    next.delete("materialPage")
-    next.delete("unitsPage")
-    next.set(key, value)
-    startTransition(() => {
-      router.replace(`?${next.toString()}`, { scroll: false })
-    })
-  }
+  const from = get("from", defaultFrom)
+  const to = get("to", defaultTo)
 
   return (
     <div className="flex flex-wrap items-end gap-3 pb-3">

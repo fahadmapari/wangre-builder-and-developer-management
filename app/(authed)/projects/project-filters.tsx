@@ -1,7 +1,6 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useUrlFilters, useDebouncedSearchParam } from "@/lib/hooks"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -14,55 +13,19 @@ const STATUS_OPTIONS = [
 ] as const
 
 export function ProjectFilters() {
-  const router = useRouter()
-  const sp = useSearchParams()
-  const [, startTransition] = useTransition()
+  const { get, setParams } = useUrlFilters([])
 
-  const status = sp.get("status") ?? "all"
-  const initialSearch = sp.get("search") ?? ""
-  const [searchValue, setSearchValue] = useState(initialSearch)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const status = get("status", "all")
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [])
-
-  function applySearch(next: string) {
-    const trimmed = next.trim()
-    const params = new URLSearchParams(sp.toString())
-    if (trimmed.length >= 2) params.set("search", trimmed)
-    else params.delete("search")
-    startTransition(() => {
-      router.replace(`?${params.toString()}`, { scroll: false })
-    })
-  }
-
-  function onSearchChange(next: string) {
-    setSearchValue(next)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => applySearch(next), 350)
-  }
-
-  function flushSearch() {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    applySearch(searchValue)
-  }
-
-  function clearSearch() {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    setSearchValue("")
-    applySearch("")
-  }
+  const search = useDebouncedSearchParam({
+    initial: get("search"),
+    apply: (v) => setParams({ search: v || null }),
+    delay: 350,
+    minLength: 2,
+  })
 
   function setStatus(value: string) {
-    const params = new URLSearchParams(sp.toString())
-    if (value === "all") params.delete("status")
-    else params.set("status", value)
-    startTransition(() => {
-      router.replace(`?${params.toString()}`, { scroll: false })
-    })
+    setParams({ status: value === "all" ? null : value })
   }
 
   return (
@@ -71,22 +34,22 @@ export function ProjectFilters() {
         <Input
           type="search"
           placeholder="Search by name or location…"
-          value={searchValue}
+          value={search.value}
           maxLength={200}
           className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => search.onChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault()
-              flushSearch()
+              search.flush()
             }
           }}
         />
-        {searchValue.length > 0 ? (
+        {search.value.length > 0 ? (
           <button
             type="button"
             aria-label="Clear search"
-            onClick={clearSearch}
+            onClick={search.clear}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             ✕
