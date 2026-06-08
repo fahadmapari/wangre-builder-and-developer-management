@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useServerAction } from "@/lib/hooks"
 import { reverseTransaction } from "./actions"
 
 function isoDateToday(): string {
@@ -44,9 +44,9 @@ export function ReverseConfirmDialog({
   category,
   linkedMaterial,
 }: ReverseConfirmDialogProps) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { run, isPending, errorMsg } = useServerAction(reverseTransaction, {
+    onSuccess: () => onOpenChange(false),
+  })
   const [occurredAt, setOccurredAt] = useState<string>(isoDateToday())
   const [notes, setNotes] = useState<string>("")
   const [andUnstock, setAndUnstock] = useState<boolean>(false)
@@ -54,20 +54,11 @@ export function ReverseConfirmDialog({
   const showStockCheckbox = category === "purchase" && !!linkedMaterial
 
   function confirm() {
-    setErrorMsg(null)
-    startTransition(async () => {
-      const result = await reverseTransaction({
-        transactionId,
-        occurredAt,
-        notes,
-        andUnstock: showStockCheckbox ? andUnstock : false,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      transactionId,
+      occurredAt,
+      notes,
+      andUnstock: showStockCheckbox ? andUnstock : false,
     })
   }
 

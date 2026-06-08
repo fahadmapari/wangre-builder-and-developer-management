@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -13,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useServerAction } from "@/lib/hooks"
 import { unmarkUnitSold } from "./actions"
 
 export function UnmarkButton({
@@ -24,25 +24,16 @@ export function UnmarkButton({
   unitType: "apartment" | "parking"
   unitNumber: string
 }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { run, isPending, errorMsg, setErrorMsg } = useServerAction(unmarkUnitSold, {
+    onSuccess: () => setOpen(false),
+  })
 
   const unitLabel =
     unitType === "apartment" ? `Apartment ${unitNumber}` : `Parking ${unitNumber}`
 
   function confirm() {
-    setErrorMsg(null)
-    startTransition(async () => {
-      const result = await unmarkUnitSold({ unitId })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        return
-      }
-      setOpen(false)
-      router.refresh()
-    })
+    run({ unitId })
   }
 
   return (

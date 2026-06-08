@@ -1,7 +1,5 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useServerAction } from "@/lib/hooks"
 import { voidTransaction } from "./actions"
 
 export function VoidConfirmDialog({
@@ -29,21 +28,12 @@ export function VoidConfirmDialog({
   amount: number
   kind: "income" | "expense"
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { run, isPending, errorMsg } = useServerAction(voidTransaction, {
+    onSuccess: () => onOpenChange(false),
+  })
 
   function confirm() {
-    setErrorMsg(null)
-    startTransition(async () => {
-      const result = await voidTransaction({ transactionId })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
-    })
+    run({ transactionId })
   }
 
   return (
