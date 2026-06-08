@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { getEntityHistoryAction } from "@/app/(authed)/audit/actions"
 import type { AuditEvent, AuditEntityType } from "@/lib/audit/schemas"
+import { useDisclosure } from "@/lib/hooks"
 
 type HistoryProps = {
   entityType: AuditEntityType
@@ -133,9 +134,9 @@ function formatRelative(d: Date): string {
 }
 
 export function HistorySheet({ entityType, entityId, trigger }: HistoryProps) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>{trigger}</SheetTrigger>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
@@ -146,7 +147,7 @@ export function HistorySheet({ entityType, entityId, trigger }: HistoryProps) {
         </SheetHeader>
         <div className="mt-4">
           <HistoryBody
-            key={open ? "open" : "closed"}
+            key={contentKey}
             entityType={entityType}
             entityId={entityId}
             open={open}
@@ -158,9 +159,9 @@ export function HistorySheet({ entityType, entityId, trigger }: HistoryProps) {
 }
 
 export function HistoryDialog({ entityType, entityId, trigger }: HistoryProps) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
@@ -171,7 +172,7 @@ export function HistoryDialog({ entityType, entityId, trigger }: HistoryProps) {
         </DialogHeader>
         <div className="mt-2">
           <HistoryBody
-            key={open ? "open" : "closed"}
+            key={contentKey}
             entityType={entityType}
             entityId={entityId}
             open={open}
