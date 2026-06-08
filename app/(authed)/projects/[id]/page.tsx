@@ -411,7 +411,7 @@ export default async function ProjectDetailPage({
           </div>
         </header>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col pb-8">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 pb-8">
         <ProjectTabs
           role={user.role}
           isJointVenture={project.isJointVenture ?? false}

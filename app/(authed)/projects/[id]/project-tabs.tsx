@@ -11,26 +11,23 @@ import {
 import { Card } from "@/components/ui/card"
 import type { Role } from "@/types"
 
-type TabValue =
-  | "summary"
-  | "capital"
-  | "jv"
-  | "inventory"
-  | "materials"
-  | "financials"
+type OverviewTab = "summary" | "capital" | "jv"
+type DataTab = "inventory" | "materials" | "financials"
 
-function pickTab(
+function pickOverviewTab(
   raw: string | null,
-  role: Role,
+  isAdmin: boolean,
   isJointVenture: boolean
-): TabValue {
-  const isAdmin = role === "admin"
+): OverviewTab {
   if (raw === "capital" && isAdmin) return "capital"
   if (raw === "jv" && isAdmin && isJointVenture) return "jv"
-  if (raw === "inventory") return "inventory"
+  return "summary"
+}
+
+function pickDataTab(raw: string | null, isAdmin: boolean): DataTab {
   if (raw === "materials") return "materials"
   if (raw === "financials" && isAdmin) return "financials"
-  return "summary"
+  return "inventory"
 }
 
 export function ProjectTabs({
@@ -55,52 +52,62 @@ export function ProjectTabs({
   const sp = useSearchParams()
   const isAdmin = role === "admin"
   const showJV = isAdmin && isJointVenture
-  const defaultTab = pickTab(sp.get("tab"), role, isJointVenture)
+  const rawTab = sp.get("tab")
+  const overviewDefault = pickOverviewTab(rawTab, isAdmin, isJointVenture)
+  const dataDefault = pickDataTab(rawTab, isAdmin)
   return (
-    <Tabs defaultValue={defaultTab} className="h-full">
-      <TabsList>
-        <TabsTrigger value="summary">Summary</TabsTrigger>
-        {isAdmin ? <TabsTrigger value="capital">Capital</TabsTrigger> : null}
-        {showJV ? (
-          <TabsTrigger value="jv">Joint Venture</TabsTrigger>
-        ) : null}
-        <TabsTrigger value="inventory">Inventory</TabsTrigger>
-        <TabsTrigger value="materials">Materials</TabsTrigger>
+    <>
+      <Tabs defaultValue={overviewDefault} className="shrink-0">
         {isAdmin ? (
-          <TabsTrigger value="financials">Financials</TabsTrigger>
+          <TabsList>
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="capital">Capital</TabsTrigger>
+            {showJV ? (
+              <TabsTrigger value="jv">Joint Venture</TabsTrigger>
+            ) : null}
+          </TabsList>
         ) : null}
-      </TabsList>
-      <TabsContent value="summary" className="min-h-0 overflow-auto">
-        {summary}
-      </TabsContent>
-      {isAdmin ? (
-        <TabsContent value="capital" className="min-h-0 overflow-auto">
-          {capital}
+        <TabsContent value="summary" className="overflow-auto">
+          {summary}
         </TabsContent>
-      ) : null}
-      {showJV ? (
-        <TabsContent value="jv" className="min-h-0 overflow-auto">
-          {jointVenture}
-        </TabsContent>
-      ) : null}
-      <TabsContent value="inventory" className="min-h-0 overflow-hidden">
-        {inventory ?? (
-          <Placeholder>Inventory listing coming in Phase 3.</Placeholder>
-        )}
-      </TabsContent>
-      <TabsContent value="materials" className="min-h-0 overflow-hidden">
-        {materials ?? (
-          <Placeholder>Materials tracking coming in Phase 4.</Placeholder>
-        )}
-      </TabsContent>
-      {isAdmin ? (
-        <TabsContent value="financials" className="min-h-0 overflow-hidden">
-          {financials ?? (
-            <Placeholder>Financial ledger coming in Phase 5.</Placeholder>
+        {isAdmin ? (
+          <TabsContent value="capital" className="overflow-auto">
+            {capital}
+          </TabsContent>
+        ) : null}
+        {showJV ? (
+          <TabsContent value="jv" className="overflow-auto">
+            {jointVenture}
+          </TabsContent>
+        ) : null}
+      </Tabs>
+      <Tabs defaultValue={dataDefault} className="flex min-h-0 flex-1 flex-col">
+        <TabsList>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="materials">Materials</TabsTrigger>
+          {isAdmin ? (
+            <TabsTrigger value="financials">Financials</TabsTrigger>
+          ) : null}
+        </TabsList>
+        <TabsContent value="inventory" className="min-h-0 overflow-hidden">
+          {inventory ?? (
+            <Placeholder>Inventory listing coming in Phase 3.</Placeholder>
           )}
         </TabsContent>
-      ) : null}
-    </Tabs>
+        <TabsContent value="materials" className="min-h-0 overflow-hidden">
+          {materials ?? (
+            <Placeholder>Materials tracking coming in Phase 4.</Placeholder>
+          )}
+        </TabsContent>
+        {isAdmin ? (
+          <TabsContent value="financials" className="min-h-0 overflow-hidden">
+            {financials ?? (
+              <Placeholder>Financial ledger coming in Phase 5.</Placeholder>
+            )}
+          </TabsContent>
+        ) : null}
+      </Tabs>
+    </>
   )
 }
 
