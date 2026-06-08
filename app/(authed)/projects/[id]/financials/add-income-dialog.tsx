@@ -1,7 +1,5 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,8 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Field } from "@/components/form-field"
+import { useServerAction, useFormFields, useDisclosure } from "@/lib/hooks"
 import { createAdhocIncome } from "./actions"
 
 type FormState = {
@@ -29,14 +28,14 @@ function isoDateToday(): string {
 }
 
 export function AddIncomeButton({ projectId }: { projectId: string }) {
-  const [open, setOpen] = useState(false)
+  const { open, onOpenChange, contentKey } = useDisclosure()
   return (
     <>
-      <Button onClick={() => setOpen(true)}>Add income</Button>
+      <Button onClick={() => onOpenChange(true)}>Add income</Button>
       <AddIncomeDialog
-        key={open ? "open" : "closed"}
+        key={contentKey}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={onOpenChange}
         projectId={projectId}
       />
     </>
@@ -52,11 +51,7 @@ function AddIncomeDialog({
   onOpenChange: (next: boolean) => void
   projectId: string
 }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>({
+  const [form, set] = useFormFields<FormState>({
     amount: "",
     description: "",
     buyerName: "",
@@ -64,29 +59,19 @@ function AddIncomeDialog({
     notes: "",
   })
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    createAdhocIncome,
+    { onSuccess: () => onOpenChange(false) },
+  )
 
   function handleSubmit() {
-    setErrorMsg(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await createAdhocIncome({
-        projectId,
-        amount: form.amount,
-        description: form.description,
-        buyerName: form.buyerName,
-        occurredAt: form.occurredAt,
-        notes: form.notes,
-      })
-      if (!result.ok) {
-        setErrorMsg(result.error)
-        setErrorField(result.field ?? null)
-        return
-      }
-      onOpenChange(false)
-      router.refresh()
+    run({
+      projectId,
+      amount: form.amount,
+      description: form.description,
+      buyerName: form.buyerName,
+      occurredAt: form.occurredAt,
+      notes: form.notes,
     })
   }
 
@@ -193,25 +178,5 @@ function AddIncomeDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({
-  label,
-  htmlFor,
-  error,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  error?: string | null
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
   )
 }
