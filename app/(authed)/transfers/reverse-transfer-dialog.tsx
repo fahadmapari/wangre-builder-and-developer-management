@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +20,8 @@ import {
   reverseMoneyTransferAction,
   reverseMaterialTransferAction,
 } from "./actions"
+import { useDisclosure } from "@/lib/hooks/use-disclosure"
+import { useServerAction } from "@/lib/hooks/use-server-action"
 
 export type TransferReversalKind = "money" | "material"
 
@@ -32,12 +34,12 @@ export function ReverseTransferButton({
   kind: TransferReversalKind
   summary: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen, onOpenChange, contentKey } = useDisclosure()
   return (
     <AlertDialog
       open={open}
-      onOpenChange={setOpen}
-      key={open ? "open" : "closed"}
+      onOpenChange={onOpenChange}
+      key={contentKey}
     >
       <AlertDialogTrigger asChild>
         <Button variant="ghost" size="sm">
@@ -70,27 +72,19 @@ function ReverseTransferForm({
   const today = new Date().toISOString().slice(0, 10)
   const [occurredAt, setOccurredAt] = useState(today)
   const [notes, setNotes] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const action =
+    kind === "money" ? reverseMoneyTransferAction : reverseMaterialTransferAction
+  const { run, isPending, errorMsg } = useServerAction(action, {
+    refresh: false,
+    onSuccess: () => onDone(),
+  })
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    startTransition(async () => {
-      const action =
-        kind === "money"
-          ? reverseMoneyTransferAction
-          : reverseMaterialTransferAction
-      const result = await action({
-        transferGroupId,
-        occurredAt,
-        notes,
-      })
-      if (result.ok) {
-        onDone()
-      } else {
-        setError(result.error)
-      }
+    run({
+      transferGroupId,
+      occurredAt,
+      notes,
     })
   }
 
@@ -127,7 +121,7 @@ function ReverseTransferForm({
             rows={3}
           />
         </div>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {errorMsg ? <p className="text-sm text-destructive">{errorMsg}</p> : null}
       </div>
       <AlertDialogFooter>
         <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>

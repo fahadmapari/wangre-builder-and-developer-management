@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select"
 import type { ProjectPickerEntry } from "./money-transfer-dialog"
 import { createMaterialTransferAction } from "./actions"
+import { useDisclosure } from "@/lib/hooks/use-disclosure"
+import { useServerAction } from "@/lib/hooks/use-server-action"
 
 export type MaterialPickerEntry = {
   id: string
@@ -43,12 +45,12 @@ export function MaterialTransferButton({
   lockedMaterial?: string
   triggerLabel?: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen, onOpenChange, contentKey } = useDisclosure()
   return (
     <Dialog
       open={open}
-      onOpenChange={setOpen}
-      key={open ? "open" : "closed"}
+      onOpenChange={onOpenChange}
+      key={contentKey}
     >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
@@ -88,32 +90,23 @@ function MaterialTransferForm({
   const today = new Date().toISOString().slice(0, 10)
   const [occurredAt, setOccurredAt] = useState(today)
   const [notes, setNotes] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    createMaterialTransferAction,
+    { refresh: false, onSuccess: () => onDone() },
+  )
 
   const destOptions = projects.filter((p) => p.id !== sourceProjectId)
   const pickedMaterial = materials.find((m) => m.id === materialId)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await createMaterialTransferAction({
-        sourceProjectId,
-        destProjectId,
-        materialId,
-        qty,
-        occurredAt,
-        notes,
-      })
-      if (result.ok) {
-        onDone()
-      } else {
-        setError(result.error)
-        setErrorField(result.field ?? null)
-      }
+    run({
+      sourceProjectId,
+      destProjectId,
+      materialId,
+      qty,
+      occurredAt,
+      notes,
     })
   }
 
@@ -218,10 +211,10 @@ function MaterialTransferForm({
             rows={3}
           />
         </div>
-        {error ? (
+        {errorMsg ? (
           <p className="text-sm text-destructive">
             {errorField ? `${errorField}: ` : ""}
-            {error}
+            {errorMsg}
           </p>
         ) : null}
       </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { createMoneyTransferAction } from "./actions"
+import { useDisclosure } from "@/lib/hooks/use-disclosure"
+import { useServerAction } from "@/lib/hooks/use-server-action"
 
 export type ProjectPickerEntry = { id: string; name: string }
 
@@ -32,12 +34,12 @@ export function MoneyTransferButton({
   projects: ProjectPickerEntry[]
   lockedSource?: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen, onOpenChange, contentKey } = useDisclosure()
   return (
     <Dialog
       open={open}
-      onOpenChange={setOpen}
-      key={open ? "open" : "closed"}
+      onOpenChange={onOpenChange}
+      key={contentKey}
     >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
@@ -71,31 +73,22 @@ function MoneyTransferForm({
   const [occurredAt, setOccurredAt] = useState(today)
   const [description, setDescription] = useState("")
   const [notes, setNotes] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [errorField, setErrorField] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const { run, isPending, errorMsg, errorField } = useServerAction(
+    createMoneyTransferAction,
+    { refresh: false, onSuccess: () => onDone() },
+  )
 
   const destOptions = projects.filter((p) => p.id !== sourceProjectId)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    setErrorField(null)
-    startTransition(async () => {
-      const result = await createMoneyTransferAction({
-        sourceProjectId,
-        destProjectId,
-        amount,
-        occurredAt,
-        description,
-        notes,
-      })
-      if (result.ok) {
-        onDone()
-      } else {
-        setError(result.error)
-        setErrorField(result.field ?? null)
-      }
+    run({
+      sourceProjectId,
+      destProjectId,
+      amount,
+      occurredAt,
+      description,
+      notes,
     })
   }
 
@@ -189,10 +182,10 @@ function MoneyTransferForm({
             rows={3}
           />
         </div>
-        {error ? (
+        {errorMsg ? (
           <p className="text-sm text-destructive">
             {errorField ? `${errorField}: ` : ""}
-            {error}
+            {errorMsg}
           </p>
         ) : null}
       </div>
