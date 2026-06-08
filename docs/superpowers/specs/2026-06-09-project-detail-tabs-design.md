@@ -1,7 +1,15 @@
 # Project detail page — move overview sections into tabs
 
 **Date:** 2026-06-09
-**Status:** Approved (design)
+**Status:** Implemented
+
+> **Revision (2026-06-09, post-implementation):** the original design put all six
+> tabs in a single strip. Per follow-up feedback, the layout now uses **two
+> independent tab strips**: an overview strip (Summary / Capital / Joint Venture)
+> at content height on top, and a data strip (Inventory / Materials / Financials)
+> below it filling the remaining height. Each strip switches independently, so an
+> overview tab and a data table are visible at the same time. Sections below are
+> updated to match.
 
 ## Problem
 
@@ -23,46 +31,63 @@ schema, or test-data changes.
 
 ## Decisions
 
-- **Separate tabs**, one per section (not a single combined "Overview" tab).
-- **Tab order:** Summary · Capital · Joint Venture · Inventory · Materials · Financials.
-- **Default tab:** Summary (the page lands here).
+- **Two independent tab strips**, not one combined strip:
+  - **Overview strip** (top, content height): Summary · Capital · Joint Venture.
+  - **Data strip** (below, fills remaining height): Inventory · Materials · Financials.
+- The strips switch independently — an overview tab and a data table show at once.
+- **Defaults:** overview strip lands on Summary; data strip lands on Inventory.
 - **Visibility** matches today's gating exactly.
+- For non-admins the overview strip has only Summary, so its tab list is hidden
+  and the Summary tiles render directly above the data strip.
 
-## Final tab bar
+## Tab strips
+
+**Overview strip** (top, `shrink-0`):
 
 | Tab | Visible to | Content |
 |---|---|---|
 | Summary *(default)* | everyone | the 5 apartments-overview tiles: Total apartments, Total parkings, Sold, Revenue, Created |
 | Capital | admin only | the 4 capital tiles (Total capital, Revenue, Total spent, Available funds) + the capital-injections table (when non-empty) + the **Add capital** button |
 | Joint Venture | admin **and** `project.isJointVenture` | the 2 JV tiles (JV units, JV revenue) |
-| Inventory | everyone | unchanged |
+
+**Data strip** (below, `flex-1`):
+
+| Tab | Visible to | Content |
+|---|---|---|
+| Inventory *(default)* | everyone | unchanged |
 | Materials | everyone | unchanged |
 | Financials | admin only | unchanged |
 
-A user who requests a tab they cannot see (e.g. a non-admin hitting
-`?tab=capital` or `?tab=financials`, or anyone hitting `?tab=jv` on a non-JV
-project) falls back to **Summary**.
+The `?tab=` deep link drives whichever strip owns that value: `?tab=financials`
+selects Financials in the data strip (overview stays on Summary); `?tab=capital`
+selects Capital in the overview strip (data stays on Inventory). A value a user
+cannot see (e.g. non-admin `?tab=financials`/`?tab=capital`, or `?tab=jv` on a
+non-JV project) is ignored and the owning strip keeps its default.
 
 ## Component changes
 
 ### 1. `app/(authed)/projects/[id]/project-tabs.tsx`
 
-- Extend `TabValue` to
-  `"summary" | "capital" | "jv" | "inventory" | "materials" | "financials"`.
-- Add props: `summary`, `capital`, `jointVenture` (all `ReactNode`) and
-  `isJointVenture: boolean`.
-- Update `pickTab(raw, role, isJointVenture)`:
-  - default `"summary"`;
-  - honor the `?tab=` param;
-  - gate `capital` and `financials` to `role === "admin"`;
-  - gate `jv` to `role === "admin" && isJointVenture`;
-  - fall back to `"summary"` for any disallowed/unknown value.
-- Render `TabsTrigger`/`TabsContent` for Summary always; Capital and Financials
-  for admins; Joint Venture for admins on JV projects; Inventory/Materials
-  always. Order as specified above.
-- Summary/Capital/JV `TabsContent` use `min-h-0 overflow-auto` so a long
-  capital-injections list scrolls within the tab. Inventory/Materials/Financials
-  keep `min-h-0 overflow-hidden` and their own internal scrolling.
+- Two tab-value unions: `OverviewTab = "summary" | "capital" | "jv"` and
+  `DataTab = "inventory" | "materials" | "financials"`.
+- Two pick helpers reading the same `?tab=` param:
+  - `pickOverviewTab(raw, isAdmin, isJointVenture)` → `capital` (admin), `jv`
+    (admin + JV), else `summary`.
+  - `pickDataTab(raw, isAdmin)` → `materials`, `financials` (admin), else
+    `inventory`.
+- Props: `summary`, `capital`, `jointVenture`, `inventory`, `materials`,
+  `financials` (all `ReactNode`) and `isJointVenture: boolean`.
+- Render two `<Tabs>` inside a fragment:
+  - Overview `<Tabs className="shrink-0">` — its `TabsList` (Summary, Capital for
+    admin, Joint Venture for admin+JV) is rendered only for admins; non-admins
+    get the Summary `TabsContent` alone. Overview `TabsContent` use
+    `overflow-auto` (the capital-injections table keeps its own `max-h-64`
+    internal scroll).
+  - Data `<Tabs className="flex min-h-0 flex-1 flex-col">` — `TabsList`
+    (Inventory, Materials, Financials for admin) plus `TabsContent` with
+    `min-h-0 overflow-hidden` and the existing internal scrolling / Phase
+    placeholders.
+- The parent (`page.tsx`) supplies the flex column with `gap-4` between strips.
 
 ### 2. `app/(authed)/projects/[id]/page.tsx`
 
