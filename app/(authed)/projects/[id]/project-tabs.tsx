@@ -1,13 +1,15 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { useSearchParams } from "next/navigation"
+import { ChevronDown, ChevronUp } from "lucide-react"
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Role } from "@/types"
 
@@ -55,30 +57,48 @@ export function ProjectTabs({
   const rawTab = sp.get("tab")
   const overviewDefault = pickOverviewTab(rawTab, isAdmin, isJointVenture)
   const dataDefault = pickDataTab(rawTab, isAdmin)
+  const [overviewCollapsed, setOverviewCollapsed] = useState(false)
   return (
     <>
       <Tabs defaultValue={overviewDefault} className="shrink-0">
-        {isAdmin ? (
-          <TabsList>
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="capital">Capital</TabsTrigger>
-            {showJV ? (
-              <TabsTrigger value="jv">Joint Venture</TabsTrigger>
+        <div className="flex items-center gap-2">
+          {isAdmin ? (
+            <TabsList>
+              <TabsTrigger value="summary">Summary</TabsTrigger>
+              <TabsTrigger value="capital">Capital</TabsTrigger>
+              {showJV ? (
+                <TabsTrigger value="jv">Joint Venture</TabsTrigger>
+              ) : null}
+            </TabsList>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setOverviewCollapsed((v) => !v)}
+            aria-expanded={!overviewCollapsed}
+            aria-label={overviewCollapsed ? "Show overview" : "Hide overview"}
+            title={overviewCollapsed ? "Show overview" : "Hide overview"}
+          >
+            {overviewCollapsed ? <ChevronDown /> : <ChevronUp />}
+          </Button>
+        </div>
+        {!overviewCollapsed ? (
+          <>
+            <TabsContent value="summary" className="overflow-auto">
+              {summary}
+            </TabsContent>
+            {isAdmin ? (
+              <TabsContent value="capital" className="overflow-auto">
+                {capital}
+              </TabsContent>
             ) : null}
-          </TabsList>
-        ) : null}
-        <TabsContent value="summary" className="overflow-auto">
-          {summary}
-        </TabsContent>
-        {isAdmin ? (
-          <TabsContent value="capital" className="overflow-auto">
-            {capital}
-          </TabsContent>
-        ) : null}
-        {showJV ? (
-          <TabsContent value="jv" className="overflow-auto">
-            {jointVenture}
-          </TabsContent>
+            {showJV ? (
+              <TabsContent value="jv" className="overflow-auto">
+                {jointVenture}
+              </TabsContent>
+            ) : null}
+          </>
         ) : null}
       </Tabs>
       <Tabs defaultValue={dataDefault} className="flex min-h-0 flex-1 flex-col">

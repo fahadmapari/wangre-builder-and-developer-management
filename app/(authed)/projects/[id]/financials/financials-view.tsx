@@ -1,6 +1,7 @@
 import type { FinancialLedgerRow } from "@/lib/transactions/schemas"
 import type { FinancialTotals } from "@/lib/transactions/repository"
 import { Button } from "@/components/ui/button"
+import { FinancialsSummary } from "./financials-summary"
 import { LedgerFilters } from "./ledger-filters"
 import { LedgerTable } from "./ledger-table"
 import { AddIncomeButton } from "./add-income-dialog"
@@ -53,36 +54,38 @@ export function FinancialsView({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tile
-          label="Revenue"
-          value={`₹${INR.format(totals.revenue)}`}
-          subtitle={
-            totals.transfersIn > 0
-              ? `incl. ₹${INR.format(totals.transfersIn)} transfers in`
-              : null
-          }
-        />
-        <Tile
-          label="Expenses"
-          value={`₹${INR.format(totals.expenses)}`}
-          subtitle={
-            totals.transfersOut > 0
-              ? `incl. ₹${INR.format(totals.transfersOut)} transfers out`
-              : null
-          }
-        />
-        <Tile
-          label="Available Funds"
-          value={`${totals.availableFunds < 0 ? "−" : ""}₹${INR.format(Math.abs(totals.availableFunds))}`}
-          subtitle={
-            totals.capital > 0
-              ? `incl. ₹${INR.format(totals.capital)} capital`
-              : null
-          }
-          tone={totals.availableFunds < 0 ? "loss" : undefined}
-        />
-      </div>
+      <FinancialsSummary>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Tile
+            label="Revenue"
+            value={`₹${INR.format(totals.revenue)}`}
+            subtitle={
+              totals.transfersIn > 0
+                ? `incl. ₹${INR.format(totals.transfersIn)} transfers in`
+                : null
+            }
+          />
+          <Tile
+            label="Expenses"
+            value={`₹${INR.format(totals.expenses)}`}
+            subtitle={
+              totals.transfersOut > 0
+                ? `incl. ₹${INR.format(totals.transfersOut)} transfers out`
+                : null
+            }
+          />
+          <Tile
+            label="Available Funds"
+            value={`${totals.availableFunds < 0 ? "−" : ""}₹${INR.format(Math.abs(totals.availableFunds))}`}
+            subtitle={
+              totals.capital > 0
+                ? `incl. ₹${INR.format(totals.capital)} capital`
+                : null
+            }
+            tone={totals.availableFunds < 0 ? "loss" : undefined}
+          />
+        </div>
+      </FinancialsSummary>
       <div className="flex shrink-0 items-center justify-between">
         <p className="text-sm text-muted-foreground">{entriesLine}</p>
         <div className="flex gap-2">
