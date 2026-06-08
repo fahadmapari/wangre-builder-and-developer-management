@@ -20,8 +20,7 @@ import {
   reverseMoneyTransferAction,
   reverseMaterialTransferAction,
 } from "./actions"
-import { useDisclosure } from "@/lib/hooks/use-disclosure"
-import { useServerAction } from "@/lib/hooks/use-server-action"
+import { useDisclosure, useServerAction } from "@/lib/hooks"
 
 export type TransferReversalKind = "money" | "material"
 

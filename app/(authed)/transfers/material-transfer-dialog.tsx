@@ -23,8 +23,7 @@ import {
 } from "@/components/ui/select"
 import type { ProjectPickerEntry } from "./money-transfer-dialog"
 import { createMaterialTransferAction } from "./actions"
-import { useDisclosure } from "@/lib/hooks/use-disclosure"
-import { useServerAction } from "@/lib/hooks/use-server-action"
+import { useDisclosure, useServerAction } from "@/lib/hooks"
 
 export type MaterialPickerEntry = {
   id: string

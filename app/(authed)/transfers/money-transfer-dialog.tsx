@@ -22,8 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { createMoneyTransferAction } from "./actions"
-import { useDisclosure } from "@/lib/hooks/use-disclosure"
-import { useServerAction } from "@/lib/hooks/use-server-action"
+import { useDisclosure, useServerAction } from "@/lib/hooks"
 
 export type ProjectPickerEntry = { id: string; name: string }
 
