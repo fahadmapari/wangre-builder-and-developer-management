@@ -2,8 +2,18 @@
 
 import { useUrlFilters, useDebouncedSearchParam } from "@/lib/hooks"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { SlidersHorizontal } from "lucide-react"
 
 const KIND_OPTIONS = [
   { value: "all", label: "All" },
@@ -48,79 +58,107 @@ export function LedgerFilters({
     minLength: 2,
   })
 
+  const activeCount =
+    (get("search") ? 1 : 0) +
+    (from !== defaultFrom ? 1 : 0) +
+    (to !== defaultTo ? 1 : 0) +
+    (kind !== "all" ? 1 : 0) +
+    (category !== "all" ? 1 : 0) +
+    (voided !== "active" ? 1 : 0)
+
   return (
-    <div className="flex flex-col gap-3 pb-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="search">Search</Label>
-          <div className="relative flex w-full sm:w-72">
-            <Input
-              id="search"
-              type="search"
-              placeholder="description, buyer, notes..."
-              value={search.value}
-              maxLength={200}
-              className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-              onChange={(e) => search.onChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  search.flush()
-                }
-              }}
-            />
-            {search.value.length > 0 ? (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={search.clear}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                ✕
-              </button>
-            ) : null}
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <SlidersHorizontal />
+          Filters
+          {activeCount > 0 ? (
+            <Badge
+              variant="secondary"
+              className="ml-0.5 h-4 min-w-4 rounded-full px-1 text-[0.65rem] tabular-nums"
+            >
+              {activeCount}
+            </Badge>
+          ) : null}
+        </Button>
+      </SheetTrigger>
+      <SheetContent className="w-full gap-0 sm:max-w-md">
+        <SheetHeader className="border-b border-border">
+          <SheetTitle>Filters</SheetTitle>
+          <SheetDescription>Refine the ledger entries shown.</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto py-5">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="search">Search</Label>
+            <div className="relative flex">
+              <Input
+                id="search"
+                type="search"
+                placeholder="description, buyer, notes..."
+                value={search.value}
+                maxLength={200}
+                className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+                onChange={(e) => search.onChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    search.flush()
+                  }
+                }}
+              />
+              {search.value.length > 0 ? (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={search.clear}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="from">From</Label>
-          <Input
-            id="from"
-            type="date"
-            value={from}
-            onChange={(e) => setParam("from", e.target.value)}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="from">From</Label>
+              <Input
+                id="from"
+                type="date"
+                value={from}
+                onChange={(e) => setParam("from", e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="to">To</Label>
+              <Input
+                id="to"
+                type="date"
+                value={to}
+                onChange={(e) => setParam("to", e.target.value)}
+              />
+            </div>
+          </div>
+          <ChipGroup
+            label="Kind"
+            options={KIND_OPTIONS}
+            active={kind}
+            onSelect={(v) => setParam("kind", v)}
+          />
+          <ChipGroup
+            label="Category"
+            options={CATEGORY_OPTIONS}
+            active={category}
+            onSelect={(v) => setParam("category", v)}
+          />
+          <ChipGroup
+            label="Voided"
+            options={VOIDED_OPTIONS}
+            active={voided}
+            onSelect={(v) => setParam("voided", v)}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="to">To</Label>
-          <Input
-            id="to"
-            type="date"
-            value={to}
-            onChange={(e) => setParam("to", e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <ChipGroup
-          label="Kind"
-          options={KIND_OPTIONS}
-          active={kind}
-          onSelect={(v) => setParam("kind", v)}
-        />
-        <ChipGroup
-          label="Category"
-          options={CATEGORY_OPTIONS}
-          active={category}
-          onSelect={(v) => setParam("category", v)}
-        />
-        <ChipGroup
-          label="Voided"
-          options={VOIDED_OPTIONS}
-          active={voided}
-          onSelect={(v) => setParam("voided", v)}
-        />
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -136,11 +174,11 @@ function ChipGroup({
   onSelect: (v: string) => void
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1.5">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {options.map((o) => (
           <Button
             key={o.value}

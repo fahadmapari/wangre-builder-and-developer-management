@@ -86,8 +86,11 @@ export function FinancialsView({
           />
         </div>
       </FinancialsSummary>
-      <div className="flex shrink-0 items-center justify-between">
-        <p className="text-sm text-muted-foreground">{entriesLine}</p>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
+          <p className="text-sm text-muted-foreground">{entriesLine}</p>
+        </div>
         <div className="flex gap-2">
           <AddIncomeButton projectId={projectId} />
           <AddExpenseButton projectId={projectId} />
@@ -99,14 +102,11 @@ export function FinancialsView({
           </Button>
         </div>
       </div>
-      <div className="shrink-0">
-        <LedgerFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
-      </div>
       {search ? (
         <p className="shrink-0 text-sm text-muted-foreground">
           Showing matches for{" "}
           <span className="font-medium text-foreground">&quot;{search}&quot;</span>
-          {" — "}use the search input above to refine or clear.
+          {" — "}open Filters to refine or clear.
         </p>
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col gap-4">
