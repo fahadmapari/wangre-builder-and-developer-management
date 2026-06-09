@@ -244,3 +244,119 @@ export async function getEarliestActivityDate(
   if (dates.length === 0) return null
   return new Date(Math.min(...dates.map((d) => d.getTime())))
 }
+
+export type InventoryBreakdown = {
+  soldApartments: number
+  availableApartments: number
+  soldParkings: number
+  availableParkings: number
+}
+
+/** Current inventory snapshot (ignores the date range). */
+export async function getInventoryBreakdown(
+  scope: DashboardScope,
+): Promise<InventoryBreakdown> {
+  const db = getDb()
+  const match: Record<string, unknown> = {}
+  if (scope.projectId) match.projectId = scope.projectId
+  const rows = await db
+    .collection("units")
+    .aggregate<{ _id: { type: string; status: string }; count: number }>([
+      { $match: match },
+      { $group: { _id: { type: "$type", status: "$status" }, count: { $sum: 1 } } },
+    ])
+    .toArray()
+  const out: InventoryBreakdown = {
+    soldApartments: 0,
+    availableApartments: 0,
+    soldParkings: 0,
+    availableParkings: 0,
+  }
+  for (const r of rows) {
+    if (r._id.type === "apartment") {
+      if (r._id.status === "sold") out.soldApartments = r.count
+      else out.availableApartments = r.count
+    } else if (r._id.type === "parking") {
+      if (r._id.status === "sold") out.soldParkings = r.count
+      else out.availableParkings = r.count
+    }
+  }
+  return out
+}
+
+export type MonthlySalesPoint = { month: string; unitsSold: number; revenue: number }
+
+/** Units sold per month (bucketed by soldAt) + sale revenue, gap-filled. */
+export async function getMonthlySales(
+  scope: DashboardScope,
+): Promise<MonthlySalesPoint[]> {
+  const db = getDb()
+  const match: Record<string, unknown> = {
+    status: "sold",
+    soldAt: { $gte: scope.from, $lte: endOfDay(scope.to) },
+  }
+  if (scope.projectId) match.projectId = scope.projectId
+  const rows = await db
+    .collection("units")
+    .aggregate<{ _id: string; unitsSold: number; revenue: number }>([
+      { $match: match },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$soldAt", timezone: TZ } },
+          unitsSold: { $sum: 1 },
+          revenue: { $sum: { $ifNull: ["$soldPriceTotal", 0] } },
+        },
+      },
+    ])
+    .toArray()
+  const byMonth = new Map(rows.map((r) => [r._id, r]))
+  return monthRange(scope.from, scope.to).map((month) => ({
+    month,
+    unitsSold: byMonth.get(month)?.unitsSold ?? 0,
+    revenue: byMonth.get(month)?.revenue ?? 0,
+  }))
+}
+
+export type ProjectRevenuePoint = {
+  projectId: string
+  projectName: string
+  revenue: number
+}
+
+/**
+ * Net income per project within the range (combined view only — always spans
+ * all projects regardless of scope.projectId). Sorted descending.
+ */
+export async function getRevenueByProject(range: {
+  from: Date
+  to: Date
+}): Promise<ProjectRevenuePoint[]> {
+  const db = getDb()
+  const rows = await db
+    .collection("transactions")
+    .aggregate<{ _id: ObjectId; revenue: number }>([
+      {
+        $match: {
+          kind: "income",
+          voided: { $ne: true },
+          occurredAt: { $gte: range.from, $lte: endOfDay(range.to) },
+        },
+      },
+      { $group: { _id: "$projectId", revenue: NETTED_AMOUNT_SUM } },
+      { $match: { revenue: { $gt: 0 } } },
+      { $sort: { revenue: -1 } },
+    ])
+    .toArray()
+  if (rows.length === 0) return []
+  const projects = await db
+    .collection("projects")
+    .find({ _id: { $in: rows.map((r) => r._id) } })
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const nameById = new Map(projects.map((p) => [p._id.toHexString(), p.name]))
+  return rows.map((r) => ({
+    projectId: r._id.toHexString(),
+    projectName: nameById.get(r._id.toHexString()) ?? "(unknown project)",
+    revenue: r.revenue,
+  }))
+}
