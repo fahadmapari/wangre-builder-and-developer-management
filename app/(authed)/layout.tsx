@@ -37,6 +37,12 @@ export default async function AuthedLayout({
           {isAdmin ? (
             <>
               <Link
+                href="/dashboard"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Dashboard
+              </Link>
+              <Link
                 href="/catalog"
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
