@@ -188,6 +188,13 @@ export class UnitNotSoldError extends Error {
 // ──────────────────────────────────────────────────────────────────────────
 
 function buildLedgerMatch(filters: LedgerFilters): Record<string, unknown> {
+  // Capital-only: capital injections are a separate collection with no
+  // kind/category/voided fields, merged via $unionWith (listLedger) / a
+  // parallel query (computeTotals). Exclude every transaction row here so the
+  // ledger and totals reflect capital alone. Every doc has an _id, so this
+  // matches nothing.
+  if (filters.kind === "capital") return { _id: { $exists: false } }
+
   const match: Record<string, unknown> = {
     occurredAt: { $gte: filters.from, $lte: endOfDay(filters.to) },
   }
@@ -239,10 +246,14 @@ export async function listLedger(
   const db = getDb()
   const coll = db.collection<Transaction>("transactions")
   const match = { ...buildLedgerMatch(filters), projectId }
-  const searchStage = buildSearchStage(filters.search)
+  // Capital injections aren't in the Atlas Search index, so skip $search when
+  // filtering to capital-only (the transaction $match excludes everything anyway).
+  const searchStage =
+    filters.kind === "capital" ? null : buildSearchStage(filters.search)
   const skip = (page - 1) * pageSize
   const includeCapital =
-    filters.kind === "all" && filters.category === "all" && !filters.search
+    filters.kind === "capital" ||
+    (filters.kind === "all" && filters.category === "all" && !filters.search)
 
   type FacetResult = {
     rows: FinancialLedgerRow[]
@@ -322,9 +333,11 @@ export async function computeTotals(
 ): Promise<FinancialTotals> {
   const db = getDb()
   const match = { ...buildLedgerMatch(filters), projectId }
-  const searchStage = buildSearchStage(filters.search)
+  const searchStage =
+    filters.kind === "capital" ? null : buildSearchStage(filters.search)
   const includeCapital =
-    filters.kind === "all" && filters.category === "all" && !filters.search
+    filters.kind === "capital" ||
+    (filters.kind === "all" && filters.category === "all" && !filters.search)
 
   const txnPipeline: Record<string, unknown>[] = [
     ...(searchStage ? [searchStage] : []),

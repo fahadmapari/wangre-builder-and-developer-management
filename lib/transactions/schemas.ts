@@ -47,7 +47,15 @@ export type UnmarkUnitSoldInput = z.infer<typeof UnmarkUnitSoldInputSchema>
 // Phase 5 — Financials inputs
 // ──────────────────────────────────────────────────────────────────────────
 
-export const LedgerKindFilterSchema = z.enum(["all", "income", "expense"])
+// "capital" is a synthetic kind: capital injections live in their own
+// collection (no kind/category fields) and are merged into the ledger via
+// $unionWith. Selecting it shows capital rows only — see buildLedgerMatch.
+export const LedgerKindFilterSchema = z.enum([
+  "all",
+  "income",
+  "expense",
+  "capital",
+])
 export type LedgerKindFilter = z.infer<typeof LedgerKindFilterSchema>
 
 export const LedgerCategoryFilterSchema = z.enum([

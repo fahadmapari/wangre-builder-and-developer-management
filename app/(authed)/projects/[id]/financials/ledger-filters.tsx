@@ -9,6 +9,7 @@ const KIND_OPTIONS = [
   { value: "all", label: "All" },
   { value: "income", label: "Income" },
   { value: "expense", label: "Expense" },
+  { value: "capital", label: "Capital" },
 ] as const
 
 const CATEGORY_OPTIONS = [
