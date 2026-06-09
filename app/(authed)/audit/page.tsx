@@ -7,6 +7,8 @@ import type {
   AuditFilters,
 } from "@/lib/audit/schemas"
 import { getDb } from "@/lib/db/client"
+import { Pagination } from "@/components/pagination"
+import { parsePageSize } from "@/lib/pagination"
 import { AuditFiltersForm } from "./audit-filters"
 import { AuditTable } from "./audit-table"
 
@@ -55,7 +57,7 @@ function parseFilters(searchParams: Record<string, string | string[] | undefined
         ? new ObjectId(projectRaw)
         : undefined,
     page: pageRaw ? Math.max(1, parseInt(pageRaw, 10) || 1) : 1,
-    pageSize: pageSizeRaw ? Math.min(200, parseInt(pageSizeRaw, 10) || 50) : 50,
+    pageSize: parsePageSize(pageSizeRaw),
   }
 }
 
@@ -113,40 +115,12 @@ export default async function AuditPage({
         }))}
       />
       <AuditTable events={events} />
-      <Pagination current={filters.page} total={totalPages} searchParams={sp} />
+      <Pagination
+        current={filters.page}
+        total={total}
+        pageSize={filters.pageSize}
+        searchParams={sp}
+      />
     </div>
-  )
-}
-
-function Pagination({ current, total, searchParams }: { current: number; total: number; searchParams: Record<string, string | string[] | undefined> }) {
-  if (total <= 1) return null
-  const base = new URLSearchParams()
-  for (const [k, v] of Object.entries(searchParams)) {
-    if (typeof v === "string") base.set(k, v)
-  }
-  const hrefFor = (p: number) => {
-    const q = new URLSearchParams(base)
-    q.set("page", String(p))
-    return `?${q.toString()}`
-  }
-  return (
-    <nav className="flex items-center gap-3 text-sm">
-      <PaginationLink href={hrefFor(current - 1)} disabled={current <= 1} label="← Prev" />
-      <span className="text-muted-foreground">
-        Page {current} of {total}
-      </span>
-      <PaginationLink href={hrefFor(current + 1)} disabled={current >= total} label="Next →" />
-    </nav>
-  )
-}
-
-function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
-  if (disabled) {
-    return <span className="text-muted-foreground">{label}</span>
-  }
-  return (
-    <a className="text-primary hover:underline" href={href}>
-      {label}
-    </a>
   )
 }

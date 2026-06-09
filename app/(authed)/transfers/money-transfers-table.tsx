@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card"
+import { Pagination } from "@/components/pagination"
 import type { MoneyTransferRow as MoneyTransferRowData } from "@/lib/transfers/schemas"
 import { MoneyTransferRow } from "./money-transfer-row"
 
@@ -15,8 +16,6 @@ export function MoneyTransfersTable({
   total: number
   searchParams: Record<string, string | string[] | undefined>
 }) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
   if (rows.length === 0) {
     return (
       <Card className="grid place-items-center p-12 text-sm text-muted-foreground">
@@ -60,57 +59,14 @@ export function MoneyTransfersTable({
           </tbody>
         </table>
       </Card>
-      <MoneyPagination
+      <Pagination
         current={page}
-        totalPages={totalPages}
+        total={total}
+        pageSize={pageSize}
         searchParams={searchParams}
+        pageKey="moneyPage"
+        pageSizeKey="moneyPageSize"
       />
     </div>
-  )
-}
-
-function MoneyPagination({
-  current,
-  totalPages,
-  searchParams,
-}: {
-  current: number
-  totalPages: number
-  searchParams: Record<string, string | string[] | undefined>
-}) {
-  if (totalPages <= 1) return null
-  const base = new URLSearchParams()
-  for (const [k, v] of Object.entries(searchParams)) {
-    if (k === "moneyPage") continue
-    if (typeof v === "string") base.set(k, v)
-  }
-  const hrefFor = (p: number) => {
-    const q = new URLSearchParams(base)
-    q.set("moneyPage", String(p))
-    return `?${q.toString()}`
-  }
-  return (
-    <nav className="flex items-center gap-3 text-sm">
-      <PaginationLink href={hrefFor(current - 1)} disabled={current <= 1} label="← Prev" />
-      <span className="text-muted-foreground">
-        Page {current} of {totalPages}
-      </span>
-      <PaginationLink
-        href={hrefFor(current + 1)}
-        disabled={current >= totalPages}
-        label="Next →"
-      />
-    </nav>
-  )
-}
-
-function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
-  if (disabled) {
-    return <span className="text-muted-foreground">{label}</span>
-  }
-  return (
-    <a className="text-primary hover:underline" href={href}>
-      {label}
-    </a>
   )
 }

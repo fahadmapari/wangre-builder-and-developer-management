@@ -13,8 +13,7 @@ import { MoneyTransfersTable } from "./money-transfers-table"
 import { MaterialTransfersTable } from "./material-transfers-table"
 import { MoneyTransferButton } from "./money-transfer-dialog"
 import { MaterialTransferButton } from "./material-transfer-dialog"
-
-const TRANSFERS_PAGE_SIZE = 50
+import { parsePageSize } from "@/lib/pagination"
 
 function startOfYear(): Date {
   const d = new Date()
@@ -63,10 +62,12 @@ export default async function TransfersPage({
   }
   const moneyPage = parsePage(sp.moneyPage)
   const materialPage = parsePage(sp.materialPage)
+  const moneyPageSize = parsePageSize(sp.moneyPageSize)
+  const materialPageSize = parsePageSize(sp.materialPageSize)
 
   const [moneyResult, materialResult, projects, catalog] = await Promise.all([
-    listMoneyTransfers(range, moneyPage, TRANSFERS_PAGE_SIZE),
-    listMaterialTransfers(range, materialPage, TRANSFERS_PAGE_SIZE),
+    listMoneyTransfers(range, moneyPage, moneyPageSize),
+    listMaterialTransfers(range, materialPage, materialPageSize),
     listProjects(),
     listCatalog(),
   ])
@@ -102,7 +103,7 @@ export default async function TransfersPage({
           <MoneyTransfersTable
             rows={moneyResult.rows}
             page={moneyPage}
-            pageSize={TRANSFERS_PAGE_SIZE}
+            pageSize={moneyPageSize}
             total={moneyResult.total}
             searchParams={sp}
           />
@@ -117,7 +118,7 @@ export default async function TransfersPage({
           <MaterialTransfersTable
             rows={materialResult.rows}
             page={materialPage}
-            pageSize={TRANSFERS_PAGE_SIZE}
+            pageSize={materialPageSize}
             total={materialResult.total}
             searchParams={sp}
           />

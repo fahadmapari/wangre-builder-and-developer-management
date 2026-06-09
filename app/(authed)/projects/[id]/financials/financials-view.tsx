@@ -1,6 +1,7 @@
 import type { FinancialLedgerRow } from "@/lib/transactions/schemas"
 import type { FinancialTotals } from "@/lib/transactions/repository"
 import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/pagination"
 import { FinancialsSummary } from "./financials-summary"
 import { LedgerFilters } from "./ledger-filters"
 import { LedgerTable } from "./ledger-table"
@@ -44,7 +45,6 @@ export function FinancialsView({
   total: number
   currentSearchParams: Record<string, string | string[] | undefined>
 }) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const entriesLine =
     total === 0
       ? "No entries in this window."
@@ -125,57 +125,12 @@ export function FinancialsView({
         )}
         <Pagination
           current={page}
-          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
           searchParams={currentSearchParams}
         />
       </div>
     </div>
-  )
-}
-
-function Pagination({
-  current,
-  totalPages,
-  searchParams,
-}: {
-  current: number
-  totalPages: number
-  searchParams: Record<string, string | string[] | undefined>
-}) {
-  if (totalPages <= 1) return null
-  const base = new URLSearchParams()
-  for (const [k, v] of Object.entries(searchParams)) {
-    if (k === "page") continue
-    if (typeof v === "string") base.set(k, v)
-  }
-  const hrefFor = (p: number) => {
-    const q = new URLSearchParams(base)
-    q.set("page", String(p))
-    return `?${q.toString()}`
-  }
-  return (
-    <nav className="flex items-center gap-3 text-sm">
-      <PaginationLink href={hrefFor(current - 1)} disabled={current <= 1} label="← Prev" />
-      <span className="text-muted-foreground">
-        Page {current} of {totalPages}
-      </span>
-      <PaginationLink
-        href={hrefFor(current + 1)}
-        disabled={current >= totalPages}
-        label="Next →"
-      />
-    </nav>
-  )
-}
-
-function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
-  if (disabled) {
-    return <span className="text-muted-foreground">{label}</span>
-  }
-  return (
-    <a className="text-primary hover:underline" href={href}>
-      {label}
-    </a>
   )
 }
 

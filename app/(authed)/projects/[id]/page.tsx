@@ -24,6 +24,7 @@ import {
   defaultLedgerTo,
 } from "@/lib/transactions/filters"
 import { getDb } from "@/lib/db/client"
+import { parsePageSize } from "@/lib/pagination"
 import { Badge } from "@/components/ui/badge"
 import { LastUpdatedLine } from "../../catalog/material-meta-line"
 import { EditProjectDialog } from "./edit-project-dialog"
@@ -60,9 +61,6 @@ function parsePage(raw: string | undefined): number {
   if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 1
   return n
 }
-
-const LEDGER_PAGE_SIZE = 50
-const UNITS_PAGE_SIZE = 50
 
 // Build a Map<transactionId, { name, unit, qty, projectName }> for purchase
 // rows on the current page, so the Reverse dialog can pre-fill the helper
@@ -121,7 +119,9 @@ type AllSearchParams = InventoryFilterParams & {
   voided?: string
   search?: string
   page?: string
+  pageSize?: string
   unitsPage?: string
+  unitsPageSize?: string
 }
 
 export default async function ProjectDetailPage({
@@ -141,6 +141,8 @@ export default async function ProjectDetailPage({
 
   const filters = parseLedgerFilters(sp)
   const page = parsePage(sp.page)
+  const pageSize = parsePageSize(sp.pageSize)
+  const unitsPageSize = parsePageSize(sp.unitsPageSize)
   const defaultFromIso = isoDate(defaultLedgerFrom())
   const defaultToIso = isoDate(defaultLedgerTo())
 
@@ -172,7 +174,7 @@ export default async function ProjectDetailPage({
     listProjectMaterials(projectObjectId),
     listCatalog(),
     isAdmin
-      ? listLedger(projectObjectId, filters, page, LEDGER_PAGE_SIZE)
+      ? listLedger(projectObjectId, filters, page, pageSize)
       : Promise.resolve({ rows: [], total: 0 }),
     isAdmin
       ? computeTotals(projectObjectId, filters)
@@ -387,7 +389,7 @@ export default async function ProjectDetailPage({
                 role={user.role}
                 searchParams={sp}
                 page={parsePage(sp.unitsPage)}
-                pageSize={UNITS_PAGE_SIZE}
+                pageSize={unitsPageSize}
                 currentSearchParams={sp}
                 isJointVentureProject={project.isJointVenture ?? false}
               />
@@ -416,7 +418,7 @@ export default async function ProjectDetailPage({
                 search={filters.search}
                 ledgerExportHref={ledgerExportHref}
                 page={page}
-                pageSize={LEDGER_PAGE_SIZE}
+                pageSize={pageSize}
                 total={ledgerTotal}
                 currentSearchParams={sp}
               />
