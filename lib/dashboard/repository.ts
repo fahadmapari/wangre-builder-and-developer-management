@@ -360,3 +360,147 @@ export async function getRevenueByProject(range: {
     revenue: r.revenue,
   }))
 }
+
+export type MaterialSpendPoint = { materialId: string; name: string; spend: number }
+
+/** Top materials by net purchase spend in the range. */
+export async function getTopMaterialsBySpend(
+  scope: DashboardScope,
+  limit = 8,
+): Promise<MaterialSpendPoint[]> {
+  const db = getDb()
+  const match = {
+    ...rangeMatch(scope, "occurredAt"),
+    category: "purchase",
+    voided: { $ne: true },
+  }
+  const rows = await db
+    .collection("materialMovements")
+    .aggregate<{ _id: ObjectId; spend: number }>([
+      { $match: match },
+      { $group: { _id: "$materialId", spend: NETTED_AMOUNT_SUM } },
+      { $match: { spend: { $gt: 0 } } },
+      { $sort: { spend: -1 } },
+      { $limit: limit },
+    ])
+    .toArray()
+  if (rows.length === 0) return []
+  const mats = await db
+    .collection("materials")
+    .find({ _id: { $in: rows.map((r) => r._id) } })
+    .project<{ _id: ObjectId; name: string }>({ name: 1 })
+    .toArray()
+  const nameById = new Map(mats.map((m) => [m._id.toHexString(), m.name]))
+  return rows.map((r) => ({
+    materialId: r._id.toHexString(),
+    name: nameById.get(r._id.toHexString()) ?? "(unknown)",
+    spend: r.spend,
+  }))
+}
+
+export type MaterialFlowPoint = { month: string; purchases: number; consumption: number }
+
+/**
+ * Monthly purchase vs consumption value (₹), gap-filled. Purchases use the
+ * netted movement amount. Consumption uses the movement amount when present,
+ * else qty × catalog unitPrice; a material with no price contributes 0.
+ */
+export async function getMonthlyMaterialFlow(
+  scope: DashboardScope,
+): Promise<MaterialFlowPoint[]> {
+  const db = getDb()
+  const match = {
+    ...rangeMatch(scope, "occurredAt"),
+    category: { $in: ["purchase", "consumption"] },
+    voided: { $ne: true },
+  }
+  const rows = await db
+    .collection("materialMovements")
+    .aggregate<{ _id: { month: string; category: string }; value: number }>([
+      { $match: match },
+      {
+        $lookup: {
+          from: "materials",
+          localField: "materialId",
+          foreignField: "_id",
+          as: "mat",
+        },
+      },
+      { $addFields: { unitPrice: { $ifNull: [{ $arrayElemAt: ["$mat.unitPrice", 0] }, 0] } } },
+      {
+        $addFields: {
+          value: {
+            $cond: [
+              { $eq: ["$category", "purchase"] },
+              {
+                $cond: [
+                  { $ifNull: ["$reversalOf", false] },
+                  { $multiply: [{ $ifNull: ["$amount", 0] }, -1] },
+                  { $ifNull: ["$amount", 0] },
+                ],
+              },
+              { $ifNull: ["$amount", { $multiply: ["$qty", "$unitPrice"] }] },
+            ],
+          },
+        },
+      },
+      { $group: { _id: { month: MONTH_EXPR, category: "$category" }, value: { $sum: "$value" } } },
+    ])
+    .toArray()
+  const byMonth = new Map<string, { purchases: number; consumption: number }>()
+  for (const r of rows) {
+    let e = byMonth.get(r._id.month)
+    if (!e) {
+      e = { purchases: 0, consumption: 0 }
+      byMonth.set(r._id.month, e)
+    }
+    if (r._id.category === "purchase") e.purchases = r.value
+    else if (r._id.category === "consumption") e.consumption = r.value
+  }
+  return monthRange(scope.from, scope.to).map((month) => ({
+    month,
+    purchases: byMonth.get(month)?.purchases ?? 0,
+    consumption: byMonth.get(month)?.consumption ?? 0,
+  }))
+}
+
+export type StockValue = {
+  total: number
+  byMaterial: { name: string; value: number }[]
+  hasUnpriced: boolean
+}
+
+/** Current stock value on hand (snapshot): Σ stockOnHand × catalog unitPrice. */
+export async function getStockValue(scope: DashboardScope): Promise<StockValue> {
+  const db = getDb()
+  const match: Record<string, unknown> = {}
+  if (scope.projectId) match.projectId = scope.projectId
+  const rows = await db
+    .collection("projectMaterials")
+    .aggregate<{ _id: ObjectId; name: string; stock: number; unitPrice: number | null }>([
+      { $match: match },
+      { $group: { _id: "$materialId", stock: { $sum: "$stockOnHand" } } },
+      { $lookup: { from: "materials", localField: "_id", foreignField: "_id", as: "mat" } },
+      {
+        $addFields: {
+          name: { $ifNull: [{ $arrayElemAt: ["$mat.name", 0] }, "(unknown)"] },
+          unitPrice: { $arrayElemAt: ["$mat.unitPrice", 0] },
+        },
+      },
+      { $project: { name: 1, stock: 1, unitPrice: 1 } },
+    ])
+    .toArray()
+  let total = 0
+  let hasUnpriced = false
+  const byMaterial = rows
+    .map((r) => {
+      const price = r.unitPrice ?? 0
+      if ((r.unitPrice == null) && r.stock > 0) hasUnpriced = true
+      const value = r.stock * price
+      total += value
+      return { name: r.name, value }
+    })
+    .filter((x) => x.value > 0)
+    .sort((a, b) => b.value - a.value)
+  return { total, byMaterial, hasUnpriced }
+}
