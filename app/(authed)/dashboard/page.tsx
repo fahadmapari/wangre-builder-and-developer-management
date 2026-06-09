@@ -41,9 +41,6 @@ export default async function DashboardPage({
   const to = parseISODate(sp.to, defaultTo)
   const scope: DashboardScope = { projectId, from, to }
 
-  const earliest = await getEarliestActivityDate(projectId)
-  const allTimeFrom = isoDate(earliest ?? defaultFrom)
-
   const [
     kpis,
     monthly,
@@ -53,6 +50,7 @@ export default async function DashboardPage({
     topMaterials,
     materialFlow,
     stockValue,
+    earliest,
   ] = await Promise.all([
     getKpiSummary(scope),
     getMonthlyFinancials(scope),
@@ -62,11 +60,15 @@ export default async function DashboardPage({
     getTopMaterialsBySpend(scope),
     getMonthlyMaterialFlow(scope),
     getStockValue(scope),
+    getEarliestActivityDate(projectId),
   ])
+
+  const allTimeFrom = isoDate(earliest ?? defaultFrom)
 
   const selectedProject = projectId
     ? projects.find((p) => p._id.toHexString() === projectId.toHexString()) ?? null
     : null
+  const isJvProject = selectedProject?.isJointVenture === true
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
@@ -86,7 +88,7 @@ export default async function DashboardPage({
         allTimeFrom={allTimeFrom}
       />
 
-      <KpiRow kpis={kpis} />
+      <KpiRow kpis={kpis} isJvProject={isJvProject} />
 
       <FinancialTrends monthly={monthly} />
       <SalesInventory
@@ -104,7 +106,13 @@ export default async function DashboardPage({
   )
 }
 
-function KpiRow({ kpis }: { kpis: KpiSummary }) {
+function KpiRow({
+  kpis,
+  isJvProject,
+}: {
+  kpis: KpiSummary
+  isJvProject: boolean
+}) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <Tile label="Revenue" value={formatINR(kpis.revenue)} />
@@ -123,8 +131,11 @@ function KpiRow({ kpis }: { kpis: KpiSummary }) {
         value={`${kpis.unitsSold} / ${kpis.unitsTotal} (${kpis.sellThroughPct}%)`}
       />
       <Tile label="Materials spend" value={formatINR(kpis.materialsSpend)} />
-      {kpis.jvRevenue !== null ? (
-        <Tile label="JV revenue (excl. P&L)" value={formatINR(kpis.jvRevenue)} />
+      {isJvProject && kpis.jvRevenue !== null ? (
+        <Tile
+          label="JV revenue (excl. from P&L)"
+          value={formatINR(kpis.jvRevenue)}
+        />
       ) : null}
     </div>
   )
