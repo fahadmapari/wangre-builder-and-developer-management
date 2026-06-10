@@ -46,8 +46,26 @@ The app has no loading affordances and no code-splitting:
 |---|---|
 | Skeleton strategy | Route-level `loading.tsx` |
 | Skeleton fidelity | Layout-matching per route |
-| Lazy scope | Charts + form-heavy dialogs/sheets |
+| Lazy scope | Charts (always) + form-heavy dialogs/sheets (measure-gated) |
 | Tables | Skeleton only; not code-split |
+| Dialog/sheet split sequencing | Measure-gated — split only routes a production-build JS measurement shows benefit (added 2026-06-11) |
+
+### Measure-gated dialog/sheet splitting (refinement)
+
+Reading the ~19 dialog/sheet files during planning surfaced new information not
+available at design time: the bodies import **no heavy third-party libraries** —
+only shadcn primitives (`Dialog`, `Input`, `Select`, `Textarea`, `Checkbox`),
+form hooks, and a server-action reference. Whether splitting shrinks a route's
+**initial** JS is therefore route-dependent (most routes already pull
+`Select`/`Dialog` into the initial bundle via filter bars and row-action menus),
+and the files are structurally heterogeneous (3 patterns + `AlertDialog` +
+data-fetching sheets), so each split carries focus/accessibility/state-reset
+regression risk.
+
+Decision: skeletons (§2) and chart lazy-loading (§3) ship first and
+unconditionally. Then run `npm run build` and record per-route **First Load JS**.
+Dialog/sheet splitting (§4) is executed **only for routes where the measurement
+shows a worthwhile reduction** — not blindly across all 19 files.
 
 ## Architecture
 
