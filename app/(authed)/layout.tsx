@@ -46,7 +46,7 @@ export default async function AuthedLayout({
                 href="/catalog"
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
-                Catalog
+                Materials
               </Link>
               <Link
                 href="/financials"
