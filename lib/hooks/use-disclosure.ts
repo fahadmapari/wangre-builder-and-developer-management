@@ -1,19 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 /**
- * Open/close state for a dialog or sheet. `contentKey` remounts the body on
- * each open so internal form state resets — matches the existing
- * `key={open ? "open" : "closed"}` idiom. Works for both controlled dialogs
- * and DialogTrigger-based ones (spread the key onto whichever owns it).
+ * Open/close state for a dialog or sheet. `mounted` becomes true on first open
+ * and stays true, so a lazily-imported body mounts only after the first open.
+ * `contentKey` remounts the body on each open so internal form state resets.
  */
 export function useDisclosure(initial = false) {
   const [open, setOpen] = useState(initial)
+  const [mounted, setMounted] = useState(initial)
+  const handleChange = useCallback((next: boolean) => {
+    if (next) setMounted(true)
+    setOpen(next)
+  }, [])
   return {
     open,
-    setOpen,
-    onOpenChange: setOpen,
+    setOpen: handleChange,
+    onOpenChange: handleChange,
+    mounted,
     contentKey: open ? "open" : "closed",
   }
 }
