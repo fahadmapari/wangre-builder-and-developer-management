@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { ChartCardSkeleton } from "@/components/skeletons"
 
 const Impl = dynamic(
-  () => import("./sales-inventory.client").then((m) => m.SalesInventory),
+  () => import("./charts.client").then((m) => m.SalesInventory),
   { ssr: false, loading: () => <ChartCardSkeleton /> },
 )
 
