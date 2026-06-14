@@ -19,7 +19,7 @@ export function InventoryFilters() {
   const { get, setParam } = useUrlFilters(["unitsPage"])
 
   const type = get("type", "apartment")
-  const status = get("status", "available")
+  const status = get("status", "all")
 
   return (
     <div className="flex flex-wrap items-center gap-4 pb-3">
