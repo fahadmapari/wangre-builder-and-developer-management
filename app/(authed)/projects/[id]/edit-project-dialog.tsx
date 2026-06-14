@@ -1,55 +1,22 @@
 "use client"
 
-import { useDisclosure, useServerAction } from "@/lib/hooks"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import dynamic from "next/dynamic"
+import { useDisclosure } from "@/lib/hooks"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { updateProject } from "../../projects/actions"
-import type { ProjectStatus } from "@/lib/projects/schemas"
+import { Dialog, DialogTrigger } from "@/components/ui/dialog"
+import type { EditProjectCurrent } from "./edit-project-dialog.body"
+
+const EditProjectDialogBody = dynamic(() =>
+  import("./edit-project-dialog.body").then((m) => m.EditProjectDialogBody),
+)
 
 type Props = {
   projectId: string
-  current: {
-    name: string
-    location: string
-    status: ProjectStatus
-    notes?: string
-    isJointVenture?: boolean
-  }
+  current: EditProjectCurrent
 }
 
-const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
-  { value: "planning", label: "Planning" },
-  { value: "under_construction", label: "Under construction" },
-  { value: "completed", label: "Completed" },
-  { value: "on_hold", label: "On hold" },
-]
-
 export function EditProjectDialog({ projectId, current }: Props) {
-  const { open, onOpenChange, contentKey } = useDisclosure()
-  const { run, isPending, errorMsg, errorField } = useServerAction(updateProject, {
-    refresh: false,
-    onSuccess: () => onOpenChange(false),
-  })
-
+  const { open, onOpenChange, contentKey, mounted } = useDisclosure()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -57,112 +24,14 @@ export function EditProjectDialog({ projectId, current }: Props) {
           Edit project
         </Button>
       </DialogTrigger>
-      <DialogContent
-        key={contentKey}
-        className="sm:max-w-md"
-      >
-        <DialogHeader>
-          <DialogTitle>Edit project</DialogTitle>
-          <DialogDescription>
-            Update descriptive fields. Capacity changes are separate.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          action={(formData) => {
-            const raw = {
-              projectId,
-              name: String(formData.get("name") ?? ""),
-              location: String(formData.get("location") ?? ""),
-              status: String(formData.get("status") ?? "") as ProjectStatus,
-              notes: String(formData.get("notes") ?? ""),
-              isJointVenture: formData.get("isJointVenture") === "on",
-            }
-            run(raw)
-          }}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              name="name"
-              defaultValue={current.name}
-              maxLength={120}
-              required
-            />
-            {errorField === "name" && (
-              <p className="text-sm text-red-600">{errorMsg}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
-            <Input
-              id="location"
-              name="location"
-              defaultValue={current.location}
-              maxLength={200}
-              required
-            />
-            {errorField === "location" && (
-              <p className="text-sm text-red-600">{errorMsg}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <Select name="status" defaultValue={current.status}>
-              <SelectTrigger id="status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id="isJointVenture"
-              name="isJointVenture"
-              defaultChecked={current.isJointVenture ?? false}
-            />
-            <Label htmlFor="isJointVenture" className="cursor-pointer">
-              Is Joint Venture?
-            </Label>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              name="notes"
-              defaultValue={current.notes ?? ""}
-              maxLength={2000}
-              rows={3}
-            />
-            {errorField === "notes" && (
-              <p className="text-sm text-red-600">{errorMsg}</p>
-            )}
-          </div>
-          {errorMsg && !errorField && (
-            <p className="text-sm text-red-600">{errorMsg}</p>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Save"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+      {mounted ? (
+        <EditProjectDialogBody
+          key={contentKey}
+          projectId={projectId}
+          current={current}
+          onClose={() => onOpenChange(false)}
+        />
+      ) : null}
     </Dialog>
   )
 }
