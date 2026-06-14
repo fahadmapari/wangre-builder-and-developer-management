@@ -10,9 +10,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { DrilldownSheet } from "@/app/(authed)/components/drilldown-sheet"
+import dynamic from "next/dynamic"
 import type { MaterialMovement } from "@/lib/materials/schemas"
 import type { Role } from "@/types"
+
+const DrilldownSheet = dynamic(() =>
+  import("@/app/(authed)/components/drilldown-sheet").then((m) => m.DrilldownSheet),
+)
 
 const INR = new Intl.NumberFormat("en-IN")
 const PAGE_SIZE = 50
@@ -197,15 +201,17 @@ export function MovementsSheetButton({
           </div>
         </SheetContent>
       </Sheet>
-      <DrilldownSheet
-        entityType="movement"
-        entityId={drilldownId ?? ""}
-        role={role}
-        open={drilldownId !== null}
-        onOpenChange={(o) => {
-          if (!o) setDrilldownId(null)
-        }}
-      />
+      {drilldownId !== null ? (
+        <DrilldownSheet
+          entityType="movement"
+          entityId={drilldownId}
+          role={role}
+          open={drilldownId !== null}
+          onOpenChange={(o) => {
+            if (!o) setDrilldownId(null)
+          }}
+        />
+      ) : null}
     </>
   )
 }
