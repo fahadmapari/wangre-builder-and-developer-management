@@ -3,8 +3,12 @@
 import { useState, type MouseEvent } from "react"
 import type { Transaction } from "@/lib/transactions/schemas"
 import { Badge } from "@/components/ui/badge"
-import { DrilldownSheet } from "@/app/(authed)/components/drilldown-sheet"
+import dynamic from "next/dynamic"
 import { RowActionsMenu } from "./row-actions-menu"
+
+const DrilldownSheet = dynamic(() =>
+  import("@/app/(authed)/components/drilldown-sheet").then((m) => m.DrilldownSheet),
+)
 
 const INR = new Intl.NumberFormat("en-IN")
 
@@ -109,13 +113,15 @@ export function LedgerRow({ row, linkedMaterial }: LedgerRowProps) {
           />
         </td>
       </tr>
-      <DrilldownSheet
-        entityType="transaction"
-        entityId={row._id}
-        role="admin"
-        open={drilldownOpen}
-        onOpenChange={setDrilldownOpen}
-      />
+      {drilldownOpen ? (
+        <DrilldownSheet
+          entityType="transaction"
+          entityId={row._id}
+          role="admin"
+          open={drilldownOpen}
+          onOpenChange={setDrilldownOpen}
+        />
+      ) : null}
     </>
   )
 }

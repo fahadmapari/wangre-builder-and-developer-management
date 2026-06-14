@@ -6,8 +6,12 @@ import type {
   MaterialTransferRow as MaterialTransferRowData,
 } from "@/lib/transfers/schemas"
 import type { MaterialUnit } from "@/lib/materials/schemas"
-import { DrilldownSheet } from "@/app/(authed)/components/drilldown-sheet"
+import dynamic from "next/dynamic"
 import { ReverseTransferButton } from "./reverse-transfer-dialog"
+
+const DrilldownSheet = dynamic(() =>
+  import("@/app/(authed)/components/drilldown-sheet").then((m) => m.DrilldownSheet),
+)
 
 function fmtDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d
@@ -85,13 +89,15 @@ export function MaterialTransferRow({
           ) : null}
         </td>
       </tr>
-      <DrilldownSheet
-        entityType="material_transfer"
-        entityId={row.sourceMovId}
-        role="admin"
-        open={open}
-        onOpenChange={setOpen}
-      />
+      {open ? (
+        <DrilldownSheet
+          entityType="material_transfer"
+          entityId={row.sourceMovId}
+          role="admin"
+          open={open}
+          onOpenChange={setOpen}
+        />
+      ) : null}
     </>
   )
 }

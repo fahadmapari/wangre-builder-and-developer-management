@@ -1,13 +1,19 @@
 "use client"
 
 import { useState, type MouseEvent } from "react"
+import dynamic from "next/dynamic"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { DrilldownSheet } from "@/app/(authed)/components/drilldown-sheet"
 import { MarkSoldButton } from "./mark-sold-dialog"
 import { UnmarkButton } from "./unmark-confirm-dialog"
-import { EditUnitDialog } from "./edit-unit-dialog"
 import type { Role } from "@/types"
+
+const DrilldownSheet = dynamic(() =>
+  import("@/app/(authed)/components/drilldown-sheet").then((m) => m.DrilldownSheet),
+)
+const EditUnitDialog = dynamic(() =>
+  import("./edit-unit-dialog").then((m) => m.EditUnitDialog),
+)
 
 const INR = new Intl.NumberFormat("en-IN")
 
@@ -99,32 +105,36 @@ export function UnitRow({
                 Edit
               </Button>
             </div>
-            <EditUnitDialog
-              unitId={unit._id}
-              open={editOpen}
-              onOpenChange={setEditOpen}
-              isJointVentureProject={isJointVentureProject}
-              current={{
-                number: unit.number,
-                floor: unit.floor ?? 0,
-                areaSqft: unit.areaSqft,
-                salePrice: unit.salePrice,
-                notes: unit.notes ?? undefined,
-                status: unit.status,
-                type: unit.type,
-                isJointVentureUnit: unit.isJointVentureUnit,
-              }}
-            />
+            {editOpen ? (
+              <EditUnitDialog
+                unitId={unit._id}
+                open={editOpen}
+                onOpenChange={setEditOpen}
+                isJointVentureProject={isJointVentureProject}
+                current={{
+                  number: unit.number,
+                  floor: unit.floor ?? 0,
+                  areaSqft: unit.areaSqft,
+                  salePrice: unit.salePrice,
+                  notes: unit.notes ?? undefined,
+                  status: unit.status,
+                  type: unit.type,
+                  isJointVentureUnit: unit.isJointVentureUnit,
+                }}
+              />
+            ) : null}
           </td>
         ) : null}
       </tr>
-      <DrilldownSheet
-        entityType="unit"
-        entityId={unit._id}
-        role={role === "admin" ? "admin" : "floor_manager"}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      {open ? (
+        <DrilldownSheet
+          entityType="unit"
+          entityId={unit._id}
+          role={role === "admin" ? "admin" : "floor_manager"}
+          open={open}
+          onOpenChange={setOpen}
+        />
+      ) : null}
     </>
   )
 }
