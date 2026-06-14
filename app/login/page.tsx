@@ -28,12 +28,9 @@ export default async function LoginPage({
             W
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Wangre</h1>
-          <p className="max-w-xs text-sm text-muted-foreground">
-            Internal operations console for projects, inventory, and ledger.
-          </p>
         </div>
         <SignInCard serverError={serverError} />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-center text-xs text-muted-foreground">
           Access is limited to authorized staff. Contact an administrator if you
           need an invitation.
         </p>

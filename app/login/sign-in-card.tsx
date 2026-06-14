@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react"
 import { signIn } from "next-auth/react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
 interface SignInCardProps {
@@ -27,28 +26,23 @@ export function SignInCard({ serverError }: SignInCardProps) {
   const displayError = serverError ?? error
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-base font-medium">Sign in</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 w-full justify-center gap-2"
-          disabled={isPending}
-          onClick={handleGoogle}
-        >
-          <GoogleMark />
-          {isPending ? "Redirecting…" : "Continue with Google"}
-        </Button>
-        {displayError && (
-          <p className="text-xs text-destructive" role="alert">
-            {displayError}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex w-full flex-col gap-3">
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 w-full justify-center gap-2"
+        disabled={isPending}
+        onClick={handleGoogle}
+      >
+        <GoogleMark />
+        {isPending ? "Redirecting…" : "Continue with Google"}
+      </Button>
+      {displayError && (
+        <p className="text-xs text-destructive" role="alert">
+          {displayError}
+        </p>
+      )}
+    </div>
   )
 }
 
