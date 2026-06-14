@@ -75,7 +75,7 @@ export function UnitRow({
           {unit.soldPriceTotal != null ? `₹${INR.format(unit.soldPriceTotal)}` : ""}
         </td>
         <td className="px-4 py-3">
-          {unit.soldAt ? new Date(unit.soldAt).toLocaleDateString() : ""}
+          {unit.soldAt ? new Date(unit.soldAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""}
         </td>
         {showActions ? (
           <td className="px-4 py-3 text-right" onClick={onActionsClick}>
